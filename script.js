@@ -14,7 +14,9 @@ const MATERIALS = {
     ACID: 3,
     WALL: 4,
     DARK_SAND: 5,
-    LAVA: 6
+    LAVA: 6,
+    ERASER: 7,
+    BEDROCK: 8
 };
 
 // Material colors
@@ -25,7 +27,9 @@ const COLORS = {
     [MATERIALS.ACID]: '#32cd32',
     [MATERIALS.WALL]: '#808080',
     [MATERIALS.DARK_SAND]: '#a0522d',
-    [MATERIALS.LAVA]: '#ff4500'
+    [MATERIALS.LAVA]: '#ff4500',
+    [MATERIALS.ERASER]: '#ffffff', // White for eraser (invisible or just a placeholder)
+    [MATERIALS.BEDROCK]: '#404040' // Dark gray for bedrock
 };
 
 // Grid to store materials
@@ -61,6 +65,7 @@ function setupEventListeners() {
     document.getElementById('acidBtn').addEventListener('click', () => selectMaterial(MATERIALS.ACID));
     document.getElementById('lavaBtn').addEventListener('click', () => selectMaterial(MATERIALS.LAVA));
     document.getElementById('wallBtn').addEventListener('click', () => selectMaterial(MATERIALS.WALL));
+    document.getElementById('eraserBtn').addEventListener('click', () => selectMaterial(MATERIALS.ERASER));
     document.getElementById('clearBtn').addEventListener('click', clearGrid);
     document.getElementById('resetBtn').addEventListener('click', resetGrid);
     
@@ -101,7 +106,13 @@ function handleMouseDown(e) {
     const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
     lastX = x;
     lastY = y;
-    paint(x, y);
+    
+    // Check if eraser is active
+    if (currentMaterial === MATERIALS.ERASER) {
+        eraseAtPosition(x, y);
+    } else {
+        paint(x, y);
+    }
 }
 
 // Handle mouse move event
@@ -112,15 +123,43 @@ function handleMouseMove(e) {
     const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
     const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
     
-    // Draw line between last position and current position
-    drawLine(lastX, lastY, x, y);
-    lastX = x;
-    lastY = y;
+    // Check if eraser is active
+    if (currentMaterial === MATERIALS.ERASER) {
+        eraseAtPosition(x, y);
+    } else {
+        // Draw line between last position and current position
+        drawLine(lastX, lastY, x, y);
+        lastX = x;
+        lastY = y;
+    }
 }
 
 // Handle mouse up event
 function handleMouseUp() {
     isMouseDown = false;
+}
+
+// Erase materials within a boundary around the mouse position
+function eraseAtPosition(x, y) {
+    // Define boundary size (e.g., 3x3 grid around cursor)
+    const boundarySize = 3;
+    
+    for (let dy = -boundarySize; dy <= boundarySize; dy++) {
+        for (let dx = -boundarySize; dx <= boundarySize; dx++) {
+            const targetX = x + dx;
+            const targetY = y + dy;
+            
+            // Check if within grid bounds
+            if (targetX >= 0 && targetX < GRID_WIDTH && targetY >= 0 && targetY < GRID_HEIGHT) {
+                // Only erase non-wall and non-bedrock materials
+                if (grid[targetY][targetX] !== MATERIALS.WALL && grid[targetY][targetX] !== MATERIALS.BEDROCK) {
+                    grid[targetY][targetX] = MATERIALS.EMPTY;
+                }
+            }
+        }
+    }
+    
+    draw();
 }
 
 // Draw a line between two points
@@ -154,7 +193,10 @@ function drawLine(x1, y1, x2, y2) {
 // Paint a cell with the current material
 function paint(x, y) {
     if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
-        grid[y][x] = currentMaterial;
+        // Prevent painting bedrock directly (it's immutable)
+        if (grid[y][x] !== MATERIALS.BEDROCK) {
+            grid[y][x] = currentMaterial;
+        }
     }
 }
 
@@ -170,11 +212,11 @@ function clearGrid() {
 
 // Reset the grid to initial state
 function resetGrid() {
-    // Initialize with a border of walls
+    // Initialize with a border of bedrock (immutable boundary)
     for (let y = 0; y < GRID_HEIGHT; y++) {
         for (let x = 0; x < GRID_WIDTH; x++) {
             if (x === 0 || x === GRID_WIDTH - 1 || y === 0 || y === GRID_HEIGHT - 1) {
-                grid[y][x] = MATERIALS.WALL;
+                grid[y][x] = MATERIALS.BEDROCK;
             } else {
                 grid[y][x] = MATERIALS.EMPTY;
             }
@@ -226,16 +268,19 @@ function updateGrid() {
                     grid[y][x] = MATERIALS.EMPTY;
                     grid[y + 1][x + 1] = MATERIALS.SAND;
                 }
-                // If blocked by a wall, try to slide down
+                // If blocked by a wall or bedrock, try to slide down
                 else if (grid[y + 1][x] === MATERIALS.WALL || 
+                         grid[y + 1][x] === MATERIALS.BEDROCK ||
                          grid[y + 1][x - 1] === MATERIALS.WALL || 
-                         grid[y + 1][x + 1] === MATERIALS.WALL) {
+                         grid[y + 1][x - 1] === MATERIALS.BEDROCK ||
+                         grid[y + 1][x + 1] === MATERIALS.WALL || 
+                         grid[y + 1][x + 1] === MATERIALS.BEDROCK) {
                     // Slide left or right depending on which side is free
-                    if (grid[y][x - 1] === MATERIALS.EMPTY && grid[y + 1][x - 1] !== MATERIALS.WALL) {
+                    if (grid[y][x - 1] === MATERIALS.EMPTY && grid[y + 1][x - 1] !== MATERIALS.WALL && grid[y + 1][x - 1] !== MATERIALS.BEDROCK) {
                         grid[y][x] = MATERIALS.EMPTY;
                         grid[y][x - 1] = MATERIALS.SAND;
                     }
-                    else if (grid[y][x + 1] === MATERIALS.EMPTY && grid[y + 1][x + 1] !== MATERIALS.WALL) {
+                    else if (grid[y][x + 1] === MATERIALS.EMPTY && grid[y + 1][x + 1] !== MATERIALS.WALL && grid[y + 1][x + 1] !== MATERIALS.BEDROCK) {
                         grid[y][x] = MATERIALS.EMPTY;
                         grid[y][x + 1] = MATERIALS.SAND;
                     }
@@ -278,22 +323,22 @@ function updateGrid() {
                     grid[y][x] = MATERIALS.EMPTY;
                     grid[y + 1][x] = MATERIALS.ACID;
                 }
-                // Dissolve sand or walls
-                else if (grid[y + 1][x] === MATERIALS.SAND || grid[y + 1][x] === MATERIALS.WALL) {
+                // Dissolve sand or walls/bedrock
+                else if (grid[y + 1][x] === MATERIALS.SAND || grid[y + 1][x] === MATERIALS.WALL || grid[y + 1][x] === MATERIALS.BEDROCK) {
                     grid[y + 1][x] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
-                // Dissolve dark sand or walls
-                else if (grid[y + 1][x] === MATERIALS.DARK_SAND || grid[y + 1][x] === MATERIALS.WALL) {
+                // Dissolve dark sand or walls/bedrock
+                else if (grid[y + 1][x] === MATERIALS.DARK_SAND || grid[y + 1][x] === MATERIALS.WALL || grid[y + 1][x] === MATERIALS.BEDROCK) {
                     grid[y + 1][x] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
                 // Try to flow left or right
-                else if (grid[y][x - 1] === MATERIALS.SAND || grid[y][x - 1] === MATERIALS.WALL) {
+                else if (grid[y][x - 1] === MATERIALS.SAND || grid[y][x - 1] === MATERIALS.WALL || grid[y][x - 1] === MATERIALS.BEDROCK) {
                     grid[y][x - 1] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
-                else if (grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.WALL) {
+                else if (grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.WALL || grid[y][x + 1] === MATERIALS.BEDROCK) {
                     grid[y][x + 1] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
@@ -315,7 +360,7 @@ function updateGrid() {
                     if (grid[y][x + 1] === MATERIALS.LAVA) grid[y][x + 1] = MATERIALS.EMPTY;
                 }
             }
-
+            
             // Lava physics
             else if (cell === MATERIALS.LAVA) {
                 // Try to fall down
