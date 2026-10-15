@@ -431,7 +431,7 @@ function draw() {
             const material = grid[y][x];
             if (material !== MATERIALS.EMPTY) {
                 ctx.fillStyle = COLORS[material];
-                ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                ctx.fillRect(x * VISUAL_CELL_SIZE, y * VISUAL_CELL_SIZE, VISUAL_CELL_SIZE, VISUAL_CELL_SIZE);
             }
         }
     }
