@@ -1,0 +1,401 @@
+// Physics Simulator Implementation
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Game constants
+let CELL_SIZE = 5;
+
+// Materials
+const MATERIALS = {
+    EMPTY: 0,
+    SAND: 1,
+    WATER: 2,
+    ACID: 3,
+    WALL: 4,
+    DARK_SAND: 5,
+    LAVA: 6
+};
+
+// Material colors
+const COLORS = {
+    [MATERIALS.EMPTY]: '#e0e0e0',
+    [MATERIALS.SAND]: '#f4a460',
+    [MATERIALS.WATER]: '#1e90ff',
+    [MATERIALS.ACID]: '#32cd32',
+    [MATERIALS.WALL]: '#808080',
+    [MATERIALS.DARK_SAND]: '#a0522d',
+    [MATERIALS.LAVA]: '#ff4500'
+};
+
+// Grid to store materials
+let grid = [];
+let GRID_WIDTH = 0;
+let GRID_HEIGHT = 0;
+
+// Current selected material
+let currentMaterial = MATERIALS.SAND;
+
+// Mouse state
+let isMouseDown = false;
+let lastX = 0;
+let lastY = 0;
+
+// Initialize the game
+function init() {
+    setupEventListeners();
+    resetGrid();
+    draw();
+    updateToolbar();
+}
+
+// Setup event listeners
+function setupEventListeners() {
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mouseleave', handleMouseUp);
+    
+    document.getElementById('sandBtn').addEventListener('click', () => selectMaterial(MATERIALS.SAND));
+    document.getElementById('waterBtn').addEventListener('click', () => selectMaterial(MATERIALS.WATER));
+    document.getElementById('acidBtn').addEventListener('click', () => selectMaterial(MATERIALS.ACID));
+    document.getElementById('lavaBtn').addEventListener('click', () => selectMaterial(MATERIALS.LAVA));
+    document.getElementById('wallBtn').addEventListener('click', () => selectMaterial(MATERIALS.WALL));
+    document.getElementById('clearBtn').addEventListener('click', clearGrid);
+    document.getElementById('resetBtn').addEventListener('click', resetGrid);
+    
+    // Add event listener for cell size slider
+    const cellSizeSlider = document.getElementById('cellSizeSlider');
+    const cellSizeValue = document.getElementById('cellSizeValue');
+    
+    cellSizeSlider.addEventListener('input', function() {
+        const newSize = parseInt(this.value);
+        cellSizeValue.textContent = newSize;
+        // Update the CELL_SIZE and redraw
+        updateCellSize(newSize);
+    });
+}
+
+// Update grid dimensions and reset grid
+function updateGridDimensions(size) {
+    CELL_SIZE = size;
+    GRID_WIDTH = Math.floor(canvas.width / CELL_SIZE);
+    GRID_HEIGHT = Math.floor(canvas.height / CELL_SIZE);
+    
+    // Reinitialize grid with new dimensions
+    grid = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(MATERIALS.EMPTY));
+}
+
+// Update cell size and reset grid
+function updateCellSize(size) {
+    updateGridDimensions(size);
+    resetGrid();
+    draw();
+}
+
+// Handle mouse down event
+function handleMouseDown(e) {
+    isMouseDown = true;
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+    const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+    lastX = x;
+    lastY = y;
+    paint(x, y);
+}
+
+// Handle mouse move event
+function handleMouseMove(e) {
+    if (!isMouseDown) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
+    const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
+    
+    // Draw line between last position and current position
+    drawLine(lastX, lastY, x, y);
+    lastX = x;
+    lastY = y;
+}
+
+// Handle mouse up event
+function handleMouseUp() {
+    isMouseDown = false;
+}
+
+// Draw a line between two points
+function drawLine(x1, y1, x2, y2) {
+    const dx = Math.abs(x2 - x1);
+    const dy = Math.abs(y2 - y1);
+    const sx = (x1 < x2) ? 1 : -1;
+    const sy = (y1 < y2) ? 1 : -1;
+    let err = dx - dy;
+    
+    let x = x1;
+    let y = y1;
+    
+    while (true) {
+        paint(x, y);
+        
+        if (x === x2 && y === y2) break;
+        
+        const e2 = 2 * err;
+        if (e2 > -dy) {
+            err -= dy;
+            x += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+// Paint a cell with the current material
+function paint(x, y) {
+    if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
+        grid[y][x] = currentMaterial;
+    }
+}
+
+// Clear the entire grid
+function clearGrid() {
+    for (let y = 0; y < GRID_HEIGHT; y++) {
+        for (let x = 0; x < GRID_WIDTH; x++) {
+            grid[y][x] = MATERIALS.EMPTY;
+        }
+    }
+    draw();
+}
+
+// Reset the grid to initial state
+function resetGrid() {
+    // Initialize with a border of walls
+    for (let y = 0; y < GRID_HEIGHT; y++) {
+        for (let x = 0; x < GRID_WIDTH; x++) {
+            if (x === 0 || x === GRID_WIDTH - 1 || y === 0 || y === GRID_HEIGHT - 1) {
+                grid[y][x] = MATERIALS.WALL;
+            } else {
+                grid[y][x] = MATERIALS.EMPTY;
+            }
+        }
+    }
+    draw();
+}
+
+// Update the toolbar to show active material
+function updateToolbar() {
+    // Remove active class from all buttons
+    document.querySelectorAll('.material-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Add active class to current material button
+    const btnId = Object.keys(MATERIALS).find(key => MATERIALS[key] === currentMaterial);
+    if (btnId) {
+        document.getElementById(`${btnId.toLowerCase()}Btn`).classList.add('active');
+    }
+}
+
+// Select a material
+function selectMaterial(material) {
+    currentMaterial = material;
+    updateToolbar();
+}
+
+// Update the grid based on physics rules
+function updateGrid() {
+    // Process from bottom to top for sand and water to fall properly
+    for (let y = GRID_HEIGHT - 2; y > 0; y--) {
+        for (let x = 1; x < GRID_WIDTH - 1; x++) {
+            const cell = grid[y][x];
+            
+            // Sand physics
+            if (cell === MATERIALS.SAND) {
+                // Try to fall down
+                if (grid[y + 1][x] === MATERIALS.EMPTY) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y + 1][x] = MATERIALS.SAND;
+                }
+                // Try to fall diagonally left or right
+                else if (grid[y + 1][x - 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y + 1][x - 1] = MATERIALS.SAND;
+                }
+                else if (grid[y + 1][x + 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y + 1][x + 1] = MATERIALS.SAND;
+                }
+                // If blocked by a wall, try to slide down
+                else if (grid[y + 1][x] === MATERIALS.WALL || 
+                         grid[y + 1][x - 1] === MATERIALS.WALL || 
+                         grid[y + 1][x + 1] === MATERIALS.WALL) {
+                    // Slide left or right depending on which side is free
+                    if (grid[y][x - 1] === MATERIALS.EMPTY && grid[y + 1][x - 1] !== MATERIALS.WALL) {
+                        grid[y][x] = MATERIALS.EMPTY;
+                        grid[y][x - 1] = MATERIALS.SAND;
+                    }
+                    else if (grid[y][x + 1] === MATERIALS.EMPTY && grid[y + 1][x + 1] !== MATERIALS.WALL) {
+                        grid[y][x] = MATERIALS.EMPTY;
+                        grid[y][x + 1] = MATERIALS.SAND;
+                    }
+                }
+            }
+            
+            // Water physics
+            else if (cell === MATERIALS.WATER) {
+                // Try to fall down
+                if (grid[y + 1][x] === MATERIALS.EMPTY) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y + 1][x] = MATERIALS.WATER;
+                }
+                // Try to flow left or right
+                else if (grid[y][x - 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y][x - 1] = MATERIALS.WATER;
+                }
+                else if (grid[y][x + 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y][x + 1] = MATERIALS.WATER;
+                }
+                // Check if water touches sand and turns it dark
+                else if (grid[y - 1][x] === MATERIALS.SAND || 
+                         grid[y + 1][x] === MATERIALS.SAND || 
+                         grid[y][x - 1] === MATERIALS.SAND || 
+                         grid[y][x + 1] === MATERIALS.SAND) {
+                    // Turn adjacent sand to dark sand
+                    if (grid[y - 1][x] === MATERIALS.SAND) grid[y - 1][x] = MATERIALS.DARK_SAND;
+                    if (grid[y + 1][x] === MATERIALS.SAND) grid[y + 1][x] = MATERIALS.DARK_SAND;
+                    if (grid[y][x - 1] === MATERIALS.SAND) grid[y][x - 1] = MATERIALS.DARK_SAND;
+                    if (grid[y][x + 1] === MATERIALS.SAND) grid[y][x + 1] = MATERIALS.DARK_SAND;
+                }
+            }
+            
+            // Acid physics
+            else if (cell === MATERIALS.ACID) {
+                // Try to fall down
+                if (grid[y + 1][x] === MATERIALS.EMPTY) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y + 1][x] = MATERIALS.ACID;
+                }
+                // Dissolve sand or walls
+                else if (grid[y + 1][x] === MATERIALS.SAND || grid[y + 1][x] === MATERIALS.WALL) {
+                    grid[y + 1][x] = MATERIALS.EMPTY;
+                    grid[y][x] = MATERIALS.EMPTY;
+                }
+                // Dissolve dark sand or walls
+                else if (grid[y + 1][x] === MATERIALS.DARK_SAND || grid[y + 1][x] === MATERIALS.WALL) {
+                    grid[y + 1][x] = MATERIALS.EMPTY;
+                    grid[y][x] = MATERIALS.EMPTY;
+                }
+                // Try to flow left or right
+                else if (grid[y][x - 1] === MATERIALS.SAND || grid[y][x - 1] === MATERIALS.WALL) {
+                    grid[y][x - 1] = MATERIALS.EMPTY;
+                    grid[y][x] = MATERIALS.EMPTY;
+                }
+                else if (grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.WALL) {
+                    grid[y][x + 1] = MATERIALS.EMPTY;
+                    grid[y][x] = MATERIALS.EMPTY;
+                }
+                // Dissolve when touching water
+                else if (grid[y][x - 1] === MATERIALS.WATER || 
+                         grid[y][x + 1] === MATERIALS.WATER || 
+                         grid[y + 1][x] === MATERIALS.WATER) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                }
+                // Annihilate when touching lava
+                else if (grid[y - 1][x] === MATERIALS.LAVA || 
+                         grid[y + 1][x] === MATERIALS.LAVA || 
+                         grid[y][x - 1] === MATERIALS.LAVA || 
+                         grid[y][x + 1] === MATERIALS.LAVA) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    if (grid[y - 1][x] === MATERIALS.LAVA) grid[y - 1][x] = MATERIALS.EMPTY;
+                    if (grid[y + 1][x] === MATERIALS.LAVA) grid[y + 1][x] = MATERIALS.EMPTY;
+                    if (grid[y][x - 1] === MATERIALS.LAVA) grid[y][x - 1] = MATERIALS.EMPTY;
+                    if (grid[y][x + 1] === MATERIALS.LAVA) grid[y][x + 1] = MATERIALS.EMPTY;
+                }
+            }
+
+            // Lava physics
+            else if (cell === MATERIALS.LAVA) {
+                // Try to fall down
+                if (grid[y + 1][x] === MATERIALS.EMPTY) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y + 1][x] = MATERIALS.LAVA;
+                }
+                // Try to flow left or right
+                else if (grid[y][x - 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y][x - 1] = MATERIALS.LAVA;
+                }
+                else if (grid[y][x + 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y][x + 1] = MATERIALS.LAVA;
+                }
+                // Melt wet sand into regular sand
+                else if (grid[y - 1][x] === MATERIALS.DARK_SAND) {
+                    grid[y - 1][x] = MATERIALS.SAND;
+                }
+                else if (grid[y + 1][x] === MATERIALS.DARK_SAND) {
+                    grid[y + 1][x] = MATERIALS.SAND;
+                }
+                else if (grid[y][x - 1] === MATERIALS.DARK_SAND) {
+                    grid[y][x - 1] = MATERIALS.SAND;
+                }
+                else if (grid[y][x + 1] === MATERIALS.DARK_SAND) {
+                    grid[y][x + 1] = MATERIALS.SAND;
+                }
+                // Melt water into steam (remove it)
+                else if (grid[y - 1][x] === MATERIALS.WATER) {
+                    grid[y - 1][x] = MATERIALS.EMPTY;
+                }
+                else if (grid[y + 1][x] === MATERIALS.WATER) {
+                    grid[y + 1][x] = MATERIALS.EMPTY;
+                }
+                else if (grid[y][x - 1] === MATERIALS.WATER) {
+                    grid[y][x - 1] = MATERIALS.EMPTY;
+                }
+                else if (grid[y][x + 1] === MATERIALS.WATER) {
+                    grid[y][x + 1] = MATERIALS.EMPTY;
+                }
+                // Annihilate when touching acid
+                else if (grid[y - 1][x] === MATERIALS.ACID || 
+                         grid[y + 1][x] === MATERIALS.ACID || 
+                         grid[y][x - 1] === MATERIALS.ACID || 
+                         grid[y][x + 1] === MATERIALS.ACID) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    if (grid[y - 1][x] === MATERIALS.ACID) grid[y - 1][x] = MATERIALS.EMPTY;
+                    if (grid[y + 1][x] === MATERIALS.ACID) grid[y + 1][x] = MATERIALS.EMPTY;
+                    if (grid[y][x - 1] === MATERIALS.ACID) grid[y][x - 1] = MATERIALS.EMPTY;
+                    if (grid[y][x + 1] === MATERIALS.ACID) grid[y][x + 1] = MATERIALS.EMPTY;
+                }
+            }
+        }
+    }
+}
+
+// Draw the grid
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    for (let y = 0; y < GRID_HEIGHT; y++) {
+        for (let x = 0; x < GRID_WIDTH; x++) {
+            const material = grid[y][x];
+            if (material !== MATERIALS.EMPTY) {
+                ctx.fillStyle = COLORS[material];
+                ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+        }
+    }
+}
+
+// Game loop
+function gameLoop() {
+    updateGrid();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+// Start the game
+init();
+gameLoop();
