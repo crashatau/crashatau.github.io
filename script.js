@@ -47,6 +47,13 @@ let lastY = 0;
 
 // Initialize the game
 function init() {
+    // Set initial grid dimensions based on canvas size
+    GRID_WIDTH = Math.floor(canvas.width / CELL_SIZE);
+    GRID_HEIGHT = Math.floor(canvas.height / CELL_SIZE);
+    
+    // Initialize grid with empty cells
+    grid = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(MATERIALS.EMPTY));
+    
     setupEventListeners();
     resetGrid();
     draw();
@@ -84,17 +91,13 @@ function setupEventListeners() {
 // Update grid dimensions and reset grid
 function updateGridDimensions(size) {
     CELL_SIZE = size;
-    GRID_WIDTH = Math.floor(canvas.width / CELL_SIZE);
-    GRID_HEIGHT = Math.floor(canvas.height / CELL_SIZE);
-    
-    // Reinitialize grid with new dimensions
-    grid = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(MATERIALS.EMPTY));
+    // Do not update grid dimensions - keep them constant for fixed boundary
+    // GRID_WIDTH and GRID_HEIGHT should remain as they were originally set
 }
 
-// Update cell size and reset grid
+// Update cell size and redraw (without changing grid dimensions)
 function updateCellSize(size) {
     updateGridDimensions(size);
-    resetGrid();
     draw();
 }
 
