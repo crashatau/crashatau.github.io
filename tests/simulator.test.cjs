@@ -436,6 +436,39 @@ test('lava dries wet sand back to regular sand', () => {
     assert.equal(s.run('grid[114][40] === MATERIALS.SAND'), true);
 });
 
+test('speed slider sets the simulation to slower, normal and faster rates', () => {
+    const s = simulator();
+    assert.ok(/<input type="range" id="simSpeedSlider" min="0" max="2" step="1" value="1">/.test(html));
+    assert.ok(/id="simSpeedValue">Normal</.test(html), 'speed label must default to Normal');
+    const slider = s.elements.get('simSpeedSlider');
+    const drop = () => s.run('resetGrid(); grid[30][40] = MATERIALS.SAND;');
+
+    // Default is Normal: one physics tick per frame, so a falling cell of
+    // sand drops exactly one cell per frame.
+    drop();
+    for (let frame = 0; frame < 10; frame++) s.run('gameLoop()');
+    assert.equal(s.run('grid[40][40] === MATERIALS.SAND && grid[39][40] === MATERIALS.EMPTY'), true);
+
+    // Slower: half rate, one tick every other frame.
+    slider.value = '0';
+    slider.dispatch('input');
+    assert.equal(s.run('simSpeedLevel'), 0);
+    assert.equal(s.elements.get('simSpeedValue').textContent, 'Slower');
+    drop();
+    for (let frame = 0; frame < 10; frame++) s.run('gameLoop()');
+    assert.equal(s.run('grid[35][40] === MATERIALS.SAND && grid[34][40] === MATERIALS.EMPTY'), true);
+
+    // Faster: one and a half ticks per frame.
+    slider.value = '2';
+    slider.dispatch('input');
+    assert.equal(s.run('simSpeedLevel'), 2);
+    assert.equal(s.elements.get('simSpeedValue').textContent, 'Faster');
+    drop();
+    for (let frame = 0; frame < 10; frame++) s.run('gameLoop()');
+    assert.equal(s.run('grid[45][40] === MATERIALS.SAND && grid[44][40] === MATERIALS.EMPTY'), true);
+    assertBoundary(s);
+});
+
 test('holding a pourable button keeps spawning at a still cursor', () => {
     const s = simulator();
     s.run('resetGrid(); Math.random = () => 0.01;');

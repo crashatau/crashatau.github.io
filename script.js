@@ -50,6 +50,13 @@ let currentMaterial = MATERIALS.SAND;
 // canvas always reflects the current grid state.
 let paused = false;
 
+// Simulation speed, in ticks per frame at the Normal rate: the slider
+// picks one of three discrete rates (0.5x, 1x, 1.5x).
+const SIM_SPEEDS = [0.5, 1, 1.5];
+const SIM_SPEED_LABELS = ['Slower', 'Normal', 'Faster'];
+let simSpeedLevel = 1;
+let tickBudget = 0;
+
 // Mouse state
 let isMouseDown = false;
 let lastX = 0;
@@ -101,6 +108,15 @@ function setupEventListeners() {
     brushSizeSlider.addEventListener('input', function() {
         brushSize = Math.min(BRUSH_SIZE_MAX, Math.max(1, Number(this.value)));
         brushSizeValue.textContent = brushSize;
+    });
+
+    const simSpeedSlider = document.getElementById('simSpeedSlider');
+    const simSpeedValue = document.getElementById('simSpeedValue');
+
+    simSpeedSlider.addEventListener('input', function() {
+        const level = Math.round(Number(this.value));
+        simSpeedLevel = Math.min(SIM_SPEEDS.length - 1, Math.max(0, level));
+        simSpeedValue.textContent = SIM_SPEED_LABELS[simSpeedLevel];
     });
 
     document.addEventListener('keydown', handleKeyDown);
@@ -222,6 +238,7 @@ function resetGrid() {
             }
         }
     }
+    tickBudget = 0;
     draw();
 }
 
@@ -506,7 +523,15 @@ function gameLoop() {
         Math.random() < POUR_SPAWN_CHANCE) {
         paint(lastX, lastY);
     }
-    if (!paused) updateGrid();
+    // The speed slider runs the physics at a fractional rate (0.5, 1,
+    // 1.5 ticks per frame) using an accumulated-fraction tick budget.
+    if (!paused) {
+        tickBudget = Math.min(2, tickBudget + SIM_SPEEDS[simSpeedLevel]);
+        while (tickBudget >= 1) {
+            updateGrid();
+            tickBudget -= 1;
+        }
+    }
     draw();
     requestAnimationFrame(gameLoop);
 }
