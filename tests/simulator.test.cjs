@@ -436,36 +436,30 @@ test('lava dries wet sand back to regular sand', () => {
     assert.equal(s.run('grid[114][40] === MATERIALS.SAND'), true);
 });
 
-test('speed slider sets the simulation to slower, normal and faster rates', () => {
+test('speed slider sets the simulation to five discrete rates', () => {
     const s = simulator();
-    assert.ok(/<input type="range" id="simSpeedSlider" min="0" max="2" step="1" value="1">/.test(html));
+    assert.ok(/<input type="range" id="simSpeedSlider" min="0" max="4" step="1" value="2">/.test(html));
     assert.ok(/id="simSpeedValue">Normal</.test(html), 'speed label must default to Normal');
+    assert.equal(s.run('simSpeedLevel'), 2, 'Normal must be the middle of the five levels');
     const slider = s.elements.get('simSpeedSlider');
     const drop = () => s.run('resetGrid(); grid[30][40] = MATERIALS.SAND;');
-
-    // Default is Normal: one physics tick per frame, so a falling cell of
-    // sand drops exactly one cell per frame.
-    drop();
-    for (let frame = 0; frame < 10; frame++) s.run('gameLoop()');
-    assert.equal(s.run('grid[40][40] === MATERIALS.SAND && grid[39][40] === MATERIALS.EMPTY'), true);
-
-    // Slower: half rate, one tick every other frame.
-    slider.value = '0';
-    slider.dispatch('input');
-    assert.equal(s.run('simSpeedLevel'), 0);
-    assert.equal(s.elements.get('simSpeedValue').textContent, 'Slower');
-    drop();
-    for (let frame = 0; frame < 10; frame++) s.run('gameLoop()');
-    assert.equal(s.run('grid[35][40] === MATERIALS.SAND && grid[34][40] === MATERIALS.EMPTY'), true);
-
-    // Faster: one and a half ticks per frame.
-    slider.value = '2';
-    slider.dispatch('input');
-    assert.equal(s.run('simSpeedLevel'), 2);
-    assert.equal(s.elements.get('simSpeedValue').textContent, 'Faster');
-    drop();
-    for (let frame = 0; frame < 10; frame++) s.run('gameLoop()');
-    assert.equal(s.run('grid[45][40] === MATERIALS.SAND && grid[44][40] === MATERIALS.EMPTY'), true);
+    // A sand cell placed at row 30 falls one row per physics tick, so ten
+    // frames move it exactly rate * 10 rows.
+    const assertRate = (value, label, level, rows) => {
+        slider.value = value;
+        slider.dispatch('input');
+        assert.equal(s.run('simSpeedLevel'), level);
+        assert.equal(s.elements.get('simSpeedValue').textContent, label);
+        drop();
+        for (let frame = 0; frame < 10; frame++) s.run('gameLoop()');
+        assert.equal(s.run(`grid[${30 + rows}][40] === MATERIALS.SAND && grid[${29 + rows}][40] === MATERIALS.EMPTY`), true);
+    };
+    // Slower: 20% of Normal; Slow: 50%; Normal: 100%; Fast: 150%; Faster: 200%.
+    assertRate('0', 'Slower', 0, 2);
+    assertRate('1', 'Slow', 1, 5);
+    assertRate('2', 'Normal', 2, 10);
+    assertRate('3', 'Fast', 3, 15);
+    assertRate('4', 'Faster', 4, 20);
     assertBoundary(s);
 });
 

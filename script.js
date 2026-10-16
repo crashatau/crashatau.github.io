@@ -51,10 +51,10 @@ let currentMaterial = MATERIALS.SAND;
 let paused = false;
 
 // Simulation speed, in ticks per frame at the Normal rate: the slider
-// picks one of three discrete rates (0.5x, 1x, 1.5x).
-const SIM_SPEEDS = [0.5, 1, 1.5];
-const SIM_SPEED_LABELS = ['Slower', 'Normal', 'Faster'];
-let simSpeedLevel = 1;
+// picks one of five discrete rates (0.2x, 0.5x, 1x, 1.5x, 2x).
+const SIM_SPEEDS = [0.2, 0.5, 1, 1.5, 2];
+const SIM_SPEED_LABELS = ['Slower', 'Slow', 'Normal', 'Fast', 'Faster'];
+let simSpeedLevel = 2;
 let tickBudget = 0;
 
 // Mouse state
