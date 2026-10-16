@@ -55,13 +55,13 @@ let isMouseDown = false;
 let lastX = 0;
 let lastY = 0;
 
-// While a liquid is held down, the stream keeps emitting at the cursor
-// every frame even if the cursor never moves; other materials are painted
-// only once per press.
-const LIQUID_SPAWN_CHANCE = 0.5;
-function isLiquidMaterial(material) {
-    return material === MATERIALS.WATER || material === MATERIALS.ACID ||
-        material === MATERIALS.LAVA;
+// While a pouring material is held down, the stream keeps emitting at the
+// cursor every frame even if the cursor never moves; the wall and the
+// eraser are painted only once per press.
+const POUR_SPAWN_CHANCE = 0.5;
+function isPourableMaterial(material) {
+    return material === MATERIALS.SAND || material === MATERIALS.WATER ||
+        material === MATERIALS.ACID || material === MATERIALS.LAVA;
 }
 
 // Initialize the game
@@ -500,10 +500,10 @@ function draw() {
 
 // Game loop
 function gameLoop() {
-    // Keep pouring liquid at the cursor while the button is held, so the
-    // stream keeps coming even when the cursor is perfectly still.
-    if (isMouseDown && isLiquidMaterial(currentMaterial) &&
-        Math.random() < LIQUID_SPAWN_CHANCE) {
+    // Keep pouring at the cursor while the button is held, so the stream
+    // keeps coming even when the cursor is perfectly still.
+    if (isMouseDown && isPourableMaterial(currentMaterial) &&
+        Math.random() < POUR_SPAWN_CHANCE) {
         paint(lastX, lastY);
     }
     if (!paused) updateGrid();

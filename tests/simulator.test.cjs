@@ -436,7 +436,7 @@ test('lava dries wet sand back to regular sand', () => {
     assert.equal(s.run('grid[114][40] === MATERIALS.SAND'), true);
 });
 
-test('holding a liquid button keeps spawning at a still cursor', () => {
+test('holding a pourable button keeps spawning at a still cursor', () => {
     const s = simulator();
     s.run('resetGrid(); Math.random = () => 0.01;');
     // Water: press and hold with the cursor perfectly still. Each frame
@@ -473,13 +473,22 @@ test('holding a liquid button keeps spawning at a still cursor', () => {
     assert.ok(s.run('grid.flat().filter(c => c === MATERIALS.LAVA).length') >= 5);
     s.canvas.dispatch('mouseup');
 
-    // Non-liquid materials are still painted exactly once per press: a
-    // held sand cursor must not keep minting new sand cells.
-    s.run('resetGrid(); Math.random = () => 0.99;');
+    // Sand pours like the liquids: a held cursor keeps minting one cell
+    // per frame and it piles up.
+    s.run('resetGrid(); Math.random = () => 0.01;');
     s.elements.get('sandBtn').dispatch('click');
     s.canvas.dispatch('mousedown', s.point(40, 30));
     for (let frame = 0; frame < 30; frame++) s.run('gameLoop()');
-    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.SAND).length'), 1);
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.SAND).length'), 30);
+    s.canvas.dispatch('mouseup');
+
+    // The wall and the eraser are not pourable: a held cursor paints them
+    // exactly once per press and then stops.
+    s.run('resetGrid(); Math.random = () => 0.01;');
+    s.elements.get('wallBtn').dispatch('click');
+    s.canvas.dispatch('mousedown', s.point(40, 30));
+    for (let frame = 0; frame < 30; frame++) s.run('gameLoop()');
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.WALL).length'), 1);
     s.canvas.dispatch('mouseup');
     assertBoundary(s);
 });
