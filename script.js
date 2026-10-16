@@ -19,7 +19,8 @@ const MATERIALS = {
     DARK_SAND: 5,
     LAVA: 6,
     ERASER: 7,
-    BEDROCK: 8
+    BEDROCK: 8,
+    AQUA_WATER: 9
 };
 
 // Material colors
@@ -32,7 +33,8 @@ const COLORS = {
     [MATERIALS.DARK_SAND]: '#a0522d',
     [MATERIALS.LAVA]: '#ff4500',
     [MATERIALS.ERASER]: '#ffffff', // White for eraser (invisible or just a placeholder)
-    [MATERIALS.BEDROCK]: '#404040' // Dark gray for bedrock
+    [MATERIALS.BEDROCK]: '#404040', // Dark gray for bedrock
+    [MATERIALS.AQUA_WATER]: '#00ffff' // Aqua for acid-touched water
 };
 
 // Grid to store materials
@@ -304,20 +306,23 @@ function updateGrid() {
             }
             
             // Water physics
-            else if (cell === MATERIALS.WATER) {
+            else if (cell === MATERIALS.WATER || cell === MATERIALS.AQUA_WATER) {
+                // Moving water keeps its own type, so acid-touched (aqua)
+                // water stays aqua as it flows.
+                const waterType = cell;
                 // Try to fall down
                 if (grid[y + 1][x] === MATERIALS.EMPTY) {
                     grid[y][x] = MATERIALS.EMPTY;
-                    grid[y + 1][x] = MATERIALS.WATER;
+                    grid[y + 1][x] = waterType;
                 }
                 // Try to flow left or right
                 else if (grid[y][x - 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
                     grid[y][x] = MATERIALS.EMPTY;
-                    grid[y][x - 1] = MATERIALS.WATER;
+                    grid[y][x - 1] = waterType;
                 }
                 else if (grid[y][x + 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
                     grid[y][x] = MATERIALS.EMPTY;
-                    grid[y][x + 1] = MATERIALS.WATER;
+                    grid[y][x + 1] = waterType;
                 }
                 // Check if water touches sand and turns it dark
                 else if (grid[y - 1][x] === MATERIALS.SAND || 
@@ -369,10 +374,14 @@ function updateGrid() {
                     grid[y][x] = MATERIALS.EMPTY;
                     grid[y][x + 1] = MATERIALS.ACID;
                 }
-                // Dissolve when touching water
-                else if (grid[y][x - 1] === MATERIALS.WATER || 
-                         grid[y][x + 1] === MATERIALS.WATER || 
-                         grid[y + 1][x] === MATERIALS.WATER) {
+                // Dissolve when touching water, leaving aqua-coloured water
+                // behind. Already-aqua water still consumes the acid.
+                else if (grid[y][x - 1] === MATERIALS.WATER || grid[y][x - 1] === MATERIALS.AQUA_WATER ||
+                         grid[y][x + 1] === MATERIALS.WATER || grid[y][x + 1] === MATERIALS.AQUA_WATER ||
+                         grid[y + 1][x] === MATERIALS.WATER || grid[y + 1][x] === MATERIALS.AQUA_WATER) {
+                    if (grid[y][x - 1] === MATERIALS.WATER) grid[y][x - 1] = MATERIALS.AQUA_WATER;
+                    if (grid[y][x + 1] === MATERIALS.WATER) grid[y][x + 1] = MATERIALS.AQUA_WATER;
+                    if (grid[y + 1][x] === MATERIALS.WATER) grid[y + 1][x] = MATERIALS.AQUA_WATER;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
                 // Annihilate when touching lava
@@ -421,16 +430,16 @@ function updateGrid() {
                     grid[y][x + 1] = MATERIALS.SAND;
                 }
                 // Melt water into steam (remove it)
-                else if (grid[y - 1][x] === MATERIALS.WATER) {
+                else if (grid[y - 1][x] === MATERIALS.WATER || grid[y - 1][x] === MATERIALS.AQUA_WATER) {
                     grid[y - 1][x] = MATERIALS.EMPTY;
                 }
-                else if (grid[y + 1][x] === MATERIALS.WATER) {
+                else if (grid[y + 1][x] === MATERIALS.WATER || grid[y + 1][x] === MATERIALS.AQUA_WATER) {
                     grid[y + 1][x] = MATERIALS.EMPTY;
                 }
-                else if (grid[y][x - 1] === MATERIALS.WATER) {
+                else if (grid[y][x - 1] === MATERIALS.WATER || grid[y][x - 1] === MATERIALS.AQUA_WATER) {
                     grid[y][x - 1] = MATERIALS.EMPTY;
                 }
-                else if (grid[y][x + 1] === MATERIALS.WATER) {
+                else if (grid[y][x + 1] === MATERIALS.WATER || grid[y][x + 1] === MATERIALS.AQUA_WATER) {
                     grid[y][x + 1] = MATERIALS.EMPTY;
                 }
                 // Annihilate when touching acid

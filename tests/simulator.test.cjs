@@ -294,6 +294,40 @@ test('a sand wall above a lava floor fully melts away given enough ticks', () =>
     assertBoundary(s);
 });
 
+test('acid touching water dyes it aqua and dissolves itself', () => {
+    const s = simulator();
+    // Water pools on the bedrock floor; acid lands on top of it.
+    s.run(`resetGrid();
+    for (let x = 40; x < 50; x++) grid[118][x] = MATERIALS.WATER;
+    grid[117][45] = MATERIALS.ACID;`);
+    s.run('Math.random = () => 0.99');
+    s.run('updateGrid()');
+    // The acid cell vanished (as it always does on water contact) and the
+    // water cell directly below it is now aqua; diagonal water is not
+    // "touching" and stays blue.
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.ACID).length'), 0);
+    assert.equal(s.run('grid[118][45] === MATERIALS.AQUA_WATER'), true);
+    assert.equal(s.run('grid[118][44] === MATERIALS.WATER && grid[118][46] === MATERIALS.WATER'), true);
+});
+
+test('aqua water flows like water and lava still boils it', () => {
+    const s = simulator();
+    // Pinned random below the 0.5 flow threshold so water never chooses a
+    // sideways flow; it only falls.
+    s.run(`resetGrid();
+    grid[40][30] = MATERIALS.AQUA_WATER;
+    Math.random = () => 0.49;`);
+    s.run('for (let tick = 0; tick < 80; tick++) updateGrid()');
+    // The single aqua cell fell to the floor keeping its aqua type.
+    assert.equal(s.run('grid[118][30] === MATERIALS.AQUA_WATER'), true);
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.AQUA_WATER).length'), 1);
+
+    // Lava on top of it boils it away like regular water.
+    s.run('grid[117][30] = MATERIALS.LAVA; Math.random = () => 0.5; updateGrid()');
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.AQUA_WATER).length'), 0);
+    assert.equal(s.run('grid[117][30] === MATERIALS.LAVA'), true);
+});
+
 test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
     const s = simulator();
     s.run(`for (let y = 1; y < GRID_HEIGHT - 1; y++) {
