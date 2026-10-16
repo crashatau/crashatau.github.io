@@ -250,6 +250,50 @@ test('R key resets the grid like the toolbar button', () => {
     assert.equal(s.run('paused'), false);
 });
 
+test('lava slowly melts adjacent sand, one cell at a time', () => {
+    const s = simulator();
+    // Lava sits on the bedrock floor with sand to its left, right and above,
+    // so the lava cell itself can never move.
+    s.run(`resetGrid();
+    grid[118][40] = MATERIALS.LAVA;
+    grid[117][40] = MATERIALS.SAND;
+    grid[118][39] = MATERIALS.SAND;
+    grid[118][41] = MATERIALS.SAND;`);
+
+    // Rollover chance 0.99 (> LAVA_MELT_SAND_CHANCE): no sand may vanish,
+    // which is what makes the melt slow instead of instant.
+    s.run('Math.random = () => 0.99');
+    for (let tick = 0; tick < 50; tick++) s.run('updateGrid()');
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.SAND).length'), 3);
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.LAVA).length'), 1);
+
+    // Rollover chance 0.01 (< LAVA_MELT_SAND_CHANCE): every touching sand
+    // cell vanishes in a single tick, and the lava itself survives.
+    s.run('Math.random = () => 0.01');
+    s.run('updateGrid()');
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.SAND).length'), 0);
+    assert.equal(s.run('grid[118][40] === MATERIALS.LAVA'), true);
+});
+
+test('a sand wall above a lava floor fully melts away given enough ticks', () => {
+    const s = simulator();
+    s.run(`resetGrid();
+    for (let y = 115; y < GRID_HEIGHT - 1; y++)
+        for (let x = 1; x < GRID_WIDTH - 1; x++)
+            grid[y][x] = MATERIALS.LAVA;
+    for (let x = 30; x < 60; x++) {
+        grid[114][x] = MATERIALS.SAND;
+        grid[113][x] = MATERIALS.SAND;
+    }
+    for (let tick = 0; tick < 200; tick++) updateGrid();`);
+    // The lava floor is completely full, so it can never move and the sand
+    // stays glued to it; each sand cell faces a 5% melt chance per tick,
+    // so all 60 cells are gone after 200 ticks while the floor remains.
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.SAND).length'), 0);
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.LAVA).length'), s.run('(GRID_WIDTH - 2) * 4'));
+    assertBoundary(s);
+});
+
 test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
     const s = simulator();
     s.run(`for (let y = 1; y < GRID_HEIGHT - 1; y++) {

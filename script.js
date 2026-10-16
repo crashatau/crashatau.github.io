@@ -243,6 +243,18 @@ function acidFlowChance(y, x) {
     return Math.min(0.4, 0.1 + 0.1 * depth);
 }
 
+// Lava slowly melts sand it touches: each sand cell adjacent to this lava
+// cell has a small independent chance to disappear per tick, so piles erode
+// cell by cell instead of vanishing all at once.
+const LAVA_MELT_SAND_CHANCE = 0.05;
+function lavaMeltAdjacentSand(y, x) {
+    for (const [ny, nx] of [[y - 1, x], [y + 1, x], [y, x - 1], [y, x + 1]]) {
+        if (grid[ny][nx] === MATERIALS.SAND && Math.random() < LAVA_MELT_SAND_CHANCE) {
+            grid[ny][nx] = MATERIALS.EMPTY;
+        }
+    }
+}
+
 // Toggle the pause state; the button always labels the action it performs.
 function togglePause() {
     paused = !paused;
@@ -378,6 +390,9 @@ function updateGrid() {
             
             // Lava physics
             else if (cell === MATERIALS.LAVA) {
+                // Contact melting happens regardless of whether this lava
+                // cell moves this tick.
+                lavaMeltAdjacentSand(y, x);
                 // Try to fall down
                 if (grid[y + 1][x] === MATERIALS.EMPTY) {
                     grid[y][x] = MATERIALS.EMPTY;
