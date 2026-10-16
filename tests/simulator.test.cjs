@@ -94,20 +94,32 @@ test('all material buttons paint visibly at the pointer', () => {
 
 test('slider extremes change only new brush footprints', () => {
     const s = simulator();
-    for (const size of [1, 2, 5, 20]) {
+    for (const size of [1, 2, 5, 15]) {
         s.run('resetGrid()');
         s.size(size);
         s.canvas.dispatch('mousedown', s.point(30, 40));
         s.canvas.dispatch('mouseup');
         assert.equal(s.run('grid.flat().filter(cell => cell === MATERIALS.SAND).length'), size * size);
         const before = s.run('JSON.stringify(grid)');
-        s.size(size === 20 ? 1 : 20);
+        s.size(size === 15 ? 1 : 15);
         assert.equal(s.run('JSON.stringify(grid)'), before);
         assert.equal(s.run('CELL_SIZE === 5 && GRID_WIDTH === 160 && GRID_HEIGHT === 120'), true);
         assert.equal(s.canvas.width, 800);
         assert.equal(s.canvas.height, 600);
         assertBoundary(s);
     }
+});
+
+test('brush size is capped at 15 cells no matter what the slider reports', () => {
+    const s = simulator();
+    assert.ok(/max="15"/.test(html), 'slider max attribute must be 15');
+    // Feed an over-limit value straight through the input event.
+    s.size(42);
+    assert.equal(s.run('brushSize'), 15);
+    // Clamping to the minimum keeps a zero/negative value from breaking
+    // the brush.
+    s.size(0);
+    assert.equal(s.run('brushSize'), 1);
 });
 
 test('pointer conversion handles borders, CSS resizing and scaled display', () => {
@@ -145,7 +157,7 @@ test('fast painting and erasing drags have no gaps; eraser preserves walls', () 
 
 test('large brushes, erasing and resetting preserve the entire rim', () => {
     const s = simulator();
-    s.size(20);
+    s.size(15);
     for (const material of ['sand', 'eraser']) {
         s.elements.get(`${material}Btn`).dispatch('click');
         for (const [x, y] of [[0, 0], [159, 119], [0, 60], [159, 60], [80, 0], [80, 119]]) {

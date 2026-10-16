@@ -8,6 +8,7 @@ const CELL_SIZE = 5;
 
 // Brush width in grid cells; changing it never resizes the world.
 let brushSize = 1;
+const BRUSH_SIZE_MAX = 15;
 
 // Materials
 const MATERIALS = {
@@ -89,7 +90,7 @@ function setupEventListeners() {
     const brushSizeValue = document.getElementById('brushSizeValue');
 
     brushSizeSlider.addEventListener('input', function() {
-        brushSize = Number(this.value);
+        brushSize = Math.min(BRUSH_SIZE_MAX, Math.max(1, Number(this.value)));
         brushSizeValue.textContent = brushSize;
     });
 
