@@ -249,6 +249,11 @@ function acidFlowChance(y, x) {
 // cell has a small independent chance to disappear per tick, so piles erode
 // cell by cell instead of vanishing all at once.
 const LAVA_MELT_SAND_CHANCE = 0.05;
+// Water is slowly absorbed by the sand it touches, disappearing cell by cell.
+const WATER_ABSORB_CHANCE = 0.02;
+// Wet (dark) sand slowly stains the regular sand around it, so the colour
+// seeps through the pile as though the water were soaking in.
+const DARK_SAND_SEEP_CHANCE = 0.05;
 function lavaMeltAdjacentSand(y, x) {
     for (const [ny, nx] of [[y - 1, x], [y + 1, x], [y, x - 1], [y, x + 1]]) {
         if (grid[ny][nx] === MATERIALS.SAND && Math.random() < LAVA_MELT_SAND_CHANCE) {
@@ -272,6 +277,12 @@ function updateGrid() {
             
             // Sand physics
             if (cell === MATERIALS.SAND) {
+                // Wet sand seeps: dry sand touching it slowly turns dark,
+                // so the colour soaks through the pile over time.
+                if (grid[y - 1][x] === MATERIALS.DARK_SAND || grid[y + 1][x] === MATERIALS.DARK_SAND ||
+                    grid[y][x - 1] === MATERIALS.DARK_SAND || grid[y][x + 1] === MATERIALS.DARK_SAND) {
+                    if (Math.random() < DARK_SAND_SEEP_CHANCE) grid[y][x] = MATERIALS.DARK_SAND;
+                }
                 // Try to fall down
                 if (grid[y + 1][x] === MATERIALS.EMPTY) {
                     grid[y][x] = MATERIALS.EMPTY;
@@ -324,16 +335,21 @@ function updateGrid() {
                     grid[y][x] = MATERIALS.EMPTY;
                     grid[y][x + 1] = waterType;
                 }
-                // Check if water touches sand and turns it dark
-                else if (grid[y - 1][x] === MATERIALS.SAND || 
-                         grid[y + 1][x] === MATERIALS.SAND || 
-                         grid[y][x - 1] === MATERIALS.SAND || 
-                         grid[y][x + 1] === MATERIALS.SAND) {
+                // Water near sand: it stains the sand dark and is slowly
+                // absorbed, disappearing cell by cell.
+                else if (grid[y - 1][x] === MATERIALS.SAND || grid[y - 1][x] === MATERIALS.DARK_SAND ||
+                         grid[y + 1][x] === MATERIALS.SAND || grid[y + 1][x] === MATERIALS.DARK_SAND ||
+                         grid[y][x - 1] === MATERIALS.SAND || grid[y][x - 1] === MATERIALS.DARK_SAND ||
+                         grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.DARK_SAND) {
                     // Turn adjacent sand to dark sand
                     if (grid[y - 1][x] === MATERIALS.SAND) grid[y - 1][x] = MATERIALS.DARK_SAND;
                     if (grid[y + 1][x] === MATERIALS.SAND) grid[y + 1][x] = MATERIALS.DARK_SAND;
                     if (grid[y][x - 1] === MATERIALS.SAND) grid[y][x - 1] = MATERIALS.DARK_SAND;
                     if (grid[y][x + 1] === MATERIALS.SAND) grid[y][x + 1] = MATERIALS.DARK_SAND;
+                    // Water near sand is absorbed and slowly disappears.
+                    if (Math.random() < WATER_ABSORB_CHANCE) {
+                        grid[y][x] = MATERIALS.EMPTY;
+                    }
                 }
             }
             

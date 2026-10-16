@@ -364,6 +364,78 @@ test('aqua water flows like water and lava still boils it', () => {
     assert.equal(s.run('grid[117][30] === MATERIALS.LAVA'), true);
 });
 
+test('dark sand slowly seeps through regular sand around it', () => {
+    const s = simulator();
+    // A dry sand floor with one wet (dark) cell sitting on it; the dry
+    // sand above and beside it must gradually soak with the dark colour.
+    s.run(`resetGrid();
+    grid[118][40] = MATERIALS.DARK_SAND;
+    grid[118][39] = MATERIALS.SAND;
+    grid[118][41] = MATERIALS.SAND;
+    grid[117][40] = MATERIALS.SAND;
+    Math.random = () => 0.04;`);
+    // Rollover below the seep chance: one tick turns every touching dry
+    // sand cell dark.
+    s.run('updateGrid()');
+    assert.equal(s.run('grid[118][39] === MATERIALS.DARK_SAND && grid[118][41] === MATERIALS.DARK_SAND && grid[117][40] === MATERIALS.DARK_SAND'), true);
+
+    // Rollover above the seep chance: nothing seeps for many ticks, which
+    // is what makes the soak slow instead of instant.
+    s.run(`resetGrid();
+    grid[118][40] = MATERIALS.DARK_SAND;
+    grid[118][39] = MATERIALS.SAND;
+    grid[118][41] = MATERIALS.SAND;
+    grid[117][40] = MATERIALS.SAND;
+    Math.random = () => 0.99;`);
+    for (let tick = 0; tick < 50; tick++) s.run('updateGrid()');
+    assert.equal(s.run('grid[118][39] === MATERIALS.SAND && grid[118][41] === MATERIALS.SAND && grid[117][40] === MATERIALS.SAND'), true);
+});
+
+test('water touching sand is slowly absorbed and disappears', () => {
+    const s = simulator();
+    // A single water cell boxed in by sand so it can never move; it can
+    // only be absorbed away.
+    s.run(`resetGrid();
+    grid[118][39] = MATERIALS.SAND;
+    grid[118][40] = MATERIALS.SAND;
+    grid[118][41] = MATERIALS.SAND;
+    grid[117][39] = MATERIALS.SAND;
+    grid[117][40] = MATERIALS.WATER;
+    grid[117][41] = MATERIALS.SAND;
+    grid[116][40] = MATERIALS.SAND;
+    Math.random = () => 0.01;`);
+    s.run('updateGrid()');
+    // The boxed-in water is absorbed away by the sand around it and stains
+    // every sand cell it touches on the way out.
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.WATER).length'), 0);
+    assert.equal(s.run('grid[117][39] === MATERIALS.DARK_SAND && grid[117][41] === MATERIALS.DARK_SAND'), true);
+
+    // Slow check: above the absorb chance a full pool above a sand floor
+    // survives 300 ticks essentially intact.
+    s.run(`resetGrid();
+    for (let x = 30; x < 60; x++) {
+        grid[118][x] = MATERIALS.SAND;
+        grid[117][x] = MATERIALS.WATER;
+    }
+    Math.random = () => 0.99;
+    for (let tick = 0; tick < 300; tick++) updateGrid();`);
+    assert.ok(s.run('grid.flat().filter(c => c === MATERIALS.WATER).length') > 25);
+});
+
+test('lava dries wet sand back to regular sand', () => {
+    const s = simulator();
+    // Static lava floor (full to the bedrock) with wet sand on top: the
+    // lava dries it to regular sand.
+    s.run(`resetGrid();
+    for (let y = 115; y < GRID_HEIGHT - 1; y++)
+        for (let x = 1; x < GRID_WIDTH - 1; x++)
+            grid[y][x] = MATERIALS.LAVA;
+    grid[114][40] = MATERIALS.DARK_SAND;
+    Math.random = () => 0.99;
+    updateGrid();`);
+    assert.equal(s.run('grid[114][40] === MATERIALS.SAND'), true);
+});
+
 test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
     const s = simulator();
     s.run(`for (let y = 1; y < GRID_HEIGHT - 1; y++) {
