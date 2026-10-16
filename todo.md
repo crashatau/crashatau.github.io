@@ -1,0 +1,1 @@
+- Fix the text field length of "Speed": so it doesn't cause the slider to move between settings changes
