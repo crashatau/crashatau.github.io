@@ -422,6 +422,94 @@ test('water touching sand is slowly absorbed and disappears', () => {
     assert.ok(s.run('grid.flat().filter(c => c === MATERIALS.WATER).length') > 25);
 });
 
+test('water touching soil soaks it to a darker wet soil colour', () => {
+    const s = simulator();
+    // A single water cell boxed in by soil so it can never move; it can
+    // only be absorbed away.
+    s.run(`resetGrid();
+    grid[118][39] = MATERIALS.SOIL;
+    grid[118][40] = MATERIALS.SOIL;
+    grid[118][41] = MATERIALS.SOIL;
+    grid[117][39] = MATERIALS.SOIL;
+    grid[117][40] = MATERIALS.WATER;
+    grid[117][41] = MATERIALS.SOIL;
+    grid[116][40] = MATERIALS.SOIL;
+    Math.random = () => 0.01;`);
+    s.run('updateGrid()');
+    // The absorbed water stains every soil cell it touches, and wet soil
+    // soaks to a darker brown than the dry soil it replaces.
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.WATER).length'), 0);
+    assert.equal(s.run('grid[117][39] === MATERIALS.WET_SOIL && grid[117][41] === MATERIALS.WET_SOIL'), true);
+    const brightness = hex => hex.slice(1).match(/../g)
+        .reduce((sum, part) => sum + parseInt(part, 16), 0);
+    assert.ok(brightness(s.run('COLORS[MATERIALS.WET_SOIL]')) <
+        brightness(s.run('COLORS[MATERIALS.SOIL]')),
+        'wet soil must be darker than dry soil');
+
+    // Dry sand next to the same water still soaks to dark sand, not to the
+    // soil colour: each material soaks to its own wet twin.
+    s.run(`resetGrid();
+    grid[118][39] = MATERIALS.SOIL;
+    grid[118][40] = MATERIALS.SOIL;
+    grid[118][41] = MATERIALS.SOIL;
+    grid[117][39] = MATERIALS.SAND;
+    grid[117][40] = MATERIALS.WATER;
+    grid[117][41] = MATERIALS.SOIL;
+    Math.random = () => 0.01;
+    updateGrid();`);
+    assert.equal(s.run('grid[117][39] === MATERIALS.DARK_SAND && grid[117][41] === MATERIALS.WET_SOIL && grid[118][40] === MATERIALS.WET_SOIL'), true);
+});
+
+test('wet soil slowly seeps through regular soil around it', () => {
+    const s = simulator();
+    // A dry soil floor with one wet cell sitting on it; the dry soil above
+    // and beside it must gradually soak with the wet soil colour.
+    s.run(`resetGrid();
+    grid[118][40] = MATERIALS.WET_SOIL;
+    grid[118][39] = MATERIALS.SOIL;
+    grid[118][41] = MATERIALS.SOIL;
+    grid[117][40] = MATERIALS.SOIL;
+    Math.random = () => 0.04;`);
+    // Rollover below the seep chance: one tick soaks every touching dry
+    // soil cell, and only the soil colour is ever stained (no dark sand).
+    s.run('updateGrid()');
+    assert.equal(s.run('grid[118][39] === MATERIALS.WET_SOIL && grid[118][41] === MATERIALS.WET_SOIL && grid[117][40] === MATERIALS.WET_SOIL'), true);
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.DARK_SAND).length'), 0);
+
+    // Rollover above the seep chance: nothing seeps for many ticks.
+    s.run(`resetGrid();
+    grid[118][40] = MATERIALS.WET_SOIL;
+    grid[118][39] = MATERIALS.SOIL;
+    grid[118][41] = MATERIALS.SOIL;
+    grid[117][40] = MATERIALS.SOIL;
+    Math.random = () => 0.99;`);
+    for (let tick = 0; tick < 50; tick++) s.run('updateGrid()');
+    assert.equal(s.run('grid[118][39] === MATERIALS.SOIL && grid[118][41] === MATERIALS.SOIL && grid[117][40] === MATERIALS.SOIL'), true);
+});
+
+test('acid dissolves wet soil and lava dries it back to regular soil', () => {
+    const s = simulator();
+    // Wet soil under a drop of acid: the acid eats through the wet colour
+    // just as it does dry soil.
+    s.run(`resetGrid();
+    grid[118][50] = MATERIALS.WET_SOIL;
+    grid[117][50] = MATERIALS.ACID;
+    updateGrid();`);
+    assert.equal(s.run('grid[118][50] === MATERIALS.EMPTY && grid[117][50] === MATERIALS.EMPTY'), true);
+
+    // Static lava floor (full to the bedrock) with wet soil on top: the
+    // lava dries it back to regular soil, not to sand.
+    s.run(`resetGrid();
+    for (let y = 115; y < GRID_HEIGHT - 1; y++)
+        for (let x = 1; x < GRID_WIDTH - 1; x++)
+            grid[y][x] = MATERIALS.LAVA;
+    grid[114][40] = MATERIALS.WET_SOIL;
+    Math.random = () => 0.99;
+    updateGrid();`);
+    assert.equal(s.run('grid[114][40] === MATERIALS.SOIL'), true);
+    assertBoundary(s);
+});
+
 test('lava dries wet sand back to regular sand', () => {
     const s = simulator();
     // Static lava floor (full to the bedrock) with wet sand on top: the
