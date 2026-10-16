@@ -43,6 +43,10 @@ let GRID_HEIGHT = 0;
 // Current selected material
 let currentMaterial = MATERIALS.SAND;
 
+// Whether physics updates are frozen; drawing keeps going so the
+// canvas always reflects the current grid state.
+let paused = false;
+
 // Mouse state
 let isMouseDown = false;
 let lastX = 0;
@@ -76,6 +80,7 @@ function setupEventListeners() {
     document.getElementById('lavaBtn').addEventListener('click', () => selectMaterial(MATERIALS.LAVA));
     document.getElementById('wallBtn').addEventListener('click', () => selectMaterial(MATERIALS.WALL));
     document.getElementById('eraserBtn').addEventListener('click', () => selectMaterial(MATERIALS.ERASER));
+    document.getElementById('pauseBtn').addEventListener('click', togglePause);
     document.getElementById('clearBtn').addEventListener('click', clearGrid);
     document.getElementById('resetBtn').addEventListener('click', resetGrid);
     
@@ -224,6 +229,12 @@ function acidFlowChance(y, x) {
     let depth = 0;
     for (let yy = y - 1; yy > 0 && grid[yy][x] === MATERIALS.ACID; yy--) depth++;
     return Math.min(0.4, 0.1 + 0.1 * depth);
+}
+
+// Toggle the pause state; the button always labels the action it performs.
+function togglePause() {
+    paused = !paused;
+    document.getElementById('pauseBtn').textContent = paused ? 'Play' : 'Pause';
 }
 
 // Update the grid based on physics rules
@@ -428,7 +439,7 @@ function draw() {
 
 // Game loop
 function gameLoop() {
-    updateGrid();
+    if (!paused) updateGrid();
     draw();
     requestAnimationFrame(gameLoop);
 }

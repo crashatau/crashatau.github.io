@@ -180,6 +180,29 @@ test('acid puddles on flat ground level off instead of piling into mountains', (
     assertBoundary(s);
 });
 
+test('pause button freezes physics and toggles its own label', () => {
+    const s = simulator();
+    const btn = s.elements.get('pauseBtn');
+    assert.ok(/id="pauseBtn"[^>]*>Pause</.test(html), 'initial button label must be Pause');
+    btn.textContent = 'Pause';
+    assert.equal(s.run('paused'), false);
+
+    // Drop sand in mid-air, pause, and verify a game frame leaves it be.
+    s.run('resetGrid(); grid[40][30] = MATERIALS.SAND;');
+    btn.dispatch('click');
+    assert.equal(s.run('paused'), true);
+    assert.equal(btn.textContent, 'Play');
+    s.run('gameLoop()');
+    assert.equal(s.run('grid[40][30] === MATERIALS.SAND && grid[41][30] === MATERIALS.EMPTY'), true);
+
+    // Resume: the same frame now steps the physics again.
+    btn.dispatch('click');
+    assert.equal(s.run('paused'), false);
+    assert.equal(btn.textContent, 'Pause');
+    s.run('gameLoop()');
+    assert.equal(s.run('grid[41][30] === MATERIALS.SAND'), true);
+});
+
 test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
     const s = simulator();
     s.run(`for (let y = 1; y < GRID_HEIGHT - 1; y++) {
