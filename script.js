@@ -188,16 +188,15 @@ function paint(x, y) {
         for (let dx = start; dx < start + brushSize; dx++) {
             const targetX = x + dx;
             const targetY = y + dy;
+            // The boundary bedrock rim is untouchable; everything else in
+            // the interior (including walls) can be painted or erased.
             if (targetX <= 0 || targetX >= GRID_WIDTH - 1 ||
                 targetY <= 0 || targetY >= GRID_HEIGHT - 1) continue;
             const material = grid[targetY][targetX];
             if (material === MATERIALS.BEDROCK) continue;
-            if (currentMaterial === MATERIALS.ERASER) {
-                // Preserve the existing rule that the eraser cannot remove walls.
-                if (material !== MATERIALS.WALL) grid[targetY][targetX] = MATERIALS.EMPTY;
-            } else {
-                grid[targetY][targetX] = currentMaterial;
-            }
+            grid[targetY][targetX] = currentMaterial === MATERIALS.ERASER
+                ? MATERIALS.EMPTY
+                : currentMaterial;
         }
     }
 }

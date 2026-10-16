@@ -141,7 +141,7 @@ test('pointer conversion handles borders, CSS resizing and scaled display', () =
     assert.equal(s.run('grid[118][158] === MATERIALS.SAND'), true);
 });
 
-test('fast painting and erasing drags have no gaps; eraser preserves walls', () => {
+test('fast painting and erasing drags have no gaps; eraser removes walls', () => {
     const s = simulator();
     s.canvas.dispatch('mousedown', s.point(20, 30));
     s.canvas.dispatch('mousemove', s.point(40, 30));
@@ -152,7 +152,31 @@ test('fast painting and erasing drags have no gaps; eraser preserves walls', () 
     s.canvas.dispatch('mousedown', s.point(20, 30));
     s.canvas.dispatch('mousemove', s.point(40, 30));
     s.canvas.dispatch('mouseup');
-    assert.equal(s.run('grid[30].slice(20, 41).every((cell, i) => cell === (i === 5 ? MATERIALS.WALL : MATERIALS.EMPTY))'), true);
+    assert.equal(s.run('grid[30].slice(20, 41).every(cell => cell === MATERIALS.EMPTY)'), true);
+});
+
+test('eraser removes walls but never the boundary bedrock rim', () => {
+    const s = simulator();
+    s.run(`resetGrid();
+    grid[50][50] = MATERIALS.WALL;
+    grid[52][48] = MATERIALS.WALL;
+    grid[49][51] = MATERIALS.WALL;`);
+    s.elements.get('eraserBtn').dispatch('click');
+    s.size(5);
+    // One pass of the large brush over a corner: everything in the
+    // interior it covers is wiped, rim included in the footprint but
+    // untouched.
+    s.canvas.dispatch('mousedown', s.point(1, 1));
+    s.canvas.dispatch('mouseup');
+    // Then wipe the wall cluster.
+    s.canvas.dispatch('mousedown', s.point(50, 50));
+    s.canvas.dispatch('mousemove', s.point(49, 49));
+    s.canvas.dispatch('mouseup');
+    s.canvas.dispatch('mousedown', s.point(52, 48));
+    s.canvas.dispatch('mousemove', s.point(52, 48));
+    s.canvas.dispatch('mouseup');
+    assert.equal(s.run('grid.flat().filter(cell => cell === MATERIALS.WALL).length'), 0);
+    assertBoundary(s);
 });
 
 test('large brushes, erasing and resetting preserve the entire rim', () => {
