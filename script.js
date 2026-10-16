@@ -4,7 +4,10 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // Game constants
-let CELL_SIZE = 5;
+const CELL_SIZE = 5;
+
+// Brush width in grid cells; changing it never resizes the world.
+let brushSize = 1;
 
 // Materials
 const MATERIALS = {
@@ -76,93 +79,52 @@ function setupEventListeners() {
     document.getElementById('clearBtn').addEventListener('click', clearGrid);
     document.getElementById('resetBtn').addEventListener('click', resetGrid);
     
-    // Add event listener for cell size slider
-    const cellSizeSlider = document.getElementById('cellSizeSlider');
-    const cellSizeValue = document.getElementById('cellSizeValue');
-    
-    cellSizeSlider.addEventListener('input', function() {
-        const newSize = parseInt(this.value);
-        cellSizeValue.textContent = newSize;
-        // Update the CELL_SIZE and redraw
-        updateCellSize(newSize);
+    const brushSizeSlider = document.getElementById('brushSizeSlider');
+    const brushSizeValue = document.getElementById('brushSizeValue');
+
+    brushSizeSlider.addEventListener('input', function() {
+        brushSize = Number(this.value);
+        brushSizeValue.textContent = brushSize;
     });
 }
 
-// Update grid dimensions and reset grid
-function updateGridDimensions(size) {
-    CELL_SIZE = size;
-    // Do not update grid dimensions - keep them constant for fixed boundary
-    // GRID_WIDTH and GRID_HEIGHT should remain as they were originally set
-}
-
-// Update cell size and redraw (without changing grid dimensions)
-function updateCellSize(size) {
-    updateGridDimensions(size);
-    draw();
+// Map the canvas content box to the fixed simulation grid, including CSS scaling.
+function pointerToCell(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width / canvas.offsetWidth;
+    const scaleY = rect.height / canvas.offsetHeight;
+    const pixelX = (e.clientX - rect.left - canvas.clientLeft * scaleX)
+        * canvas.width / (canvas.clientWidth * scaleX);
+    const pixelY = (e.clientY - rect.top - canvas.clientTop * scaleY)
+        * canvas.height / (canvas.clientHeight * scaleY);
+    return { x: Math.floor(pixelX / CELL_SIZE), y: Math.floor(pixelY / CELL_SIZE) };
 }
 
 // Handle mouse down event
 function handleMouseDown(e) {
+    if (e.button !== 0) return;
+    const { x, y } = pointerToCell(e);
+    if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return;
     isMouseDown = true;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
-    const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
     lastX = x;
     lastY = y;
-    
-    // Check if eraser is active
-    if (currentMaterial === MATERIALS.ERASER) {
-        eraseAtPosition(x, y);
-    } else {
-        paint(x, y);
-    }
+    paint(x, y);
+    draw();
 }
 
-// Handle mouse move event
+// Interpolate both painting and erasing so fast drags don't leave gaps.
 function handleMouseMove(e) {
     if (!isMouseDown) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / CELL_SIZE);
-    const y = Math.floor((e.clientY - rect.top) / CELL_SIZE);
-    
-    // Check if eraser is active
-    if (currentMaterial === MATERIALS.ERASER) {
-        eraseAtPosition(x, y);
-    } else {
-        // Draw line between last position and current position
-        drawLine(lastX, lastY, x, y);
-        lastX = x;
-        lastY = y;
-    }
+    const { x, y } = pointerToCell(e);
+    drawLine(lastX, lastY, x, y);
+    lastX = x;
+    lastY = y;
+    draw();
 }
 
 // Handle mouse up event
 function handleMouseUp() {
     isMouseDown = false;
-}
-
-// Erase materials within a boundary around the mouse position
-function eraseAtPosition(x, y) {
-    // Define boundary size (e.g., 3x3 grid around cursor)
-    const boundarySize = 3;
-    
-    for (let dy = -boundarySize; dy <= boundarySize; dy++) {
-        for (let dx = -boundarySize; dx <= boundarySize; dx++) {
-            const targetX = x + dx;
-            const targetY = y + dy;
-            
-            // Check if within grid bounds
-            if (targetX >= 0 && targetX < GRID_WIDTH && targetY >= 0 && targetY < GRID_HEIGHT) {
-                // Only erase non-wall and non-bedrock materials
-                if (grid[targetY][targetX] !== MATERIALS.WALL && grid[targetY][targetX] !== MATERIALS.BEDROCK) {
-                    grid[targetY][targetX] = MATERIALS.EMPTY;
-                }
-            }
-        }
-    }
-    
-    draw();
 }
 
 // Draw a line between two points
@@ -193,24 +155,31 @@ function drawLine(x1, y1, x2, y2) {
     }
 }
 
-// Paint a cell with the current material
+// Apply a square brush, clipped to the interior. Even widths extend one extra
+// cell to the right/bottom, keeping the footprint exactly brushSize cells wide.
 function paint(x, y) {
-    if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
-        // Prevent painting bedrock directly (it's immutable)
-        if (grid[y][x] !== MATERIALS.BEDROCK) {
-            grid[y][x] = currentMaterial;
+    const start = -Math.floor((brushSize - 1) / 2);
+    for (let dy = start; dy < start + brushSize; dy++) {
+        for (let dx = start; dx < start + brushSize; dx++) {
+            const targetX = x + dx;
+            const targetY = y + dy;
+            if (targetX <= 0 || targetX >= GRID_WIDTH - 1 ||
+                targetY <= 0 || targetY >= GRID_HEIGHT - 1) continue;
+            const material = grid[targetY][targetX];
+            if (material === MATERIALS.BEDROCK) continue;
+            if (currentMaterial === MATERIALS.ERASER) {
+                // Preserve the existing rule that the eraser cannot remove walls.
+                if (material !== MATERIALS.WALL) grid[targetY][targetX] = MATERIALS.EMPTY;
+            } else {
+                grid[targetY][targetX] = currentMaterial;
+            }
         }
     }
 }
 
-// Clear the entire grid
+// Clearing and resetting both restore the empty interior and fixed bedrock rim.
 function clearGrid() {
-    for (let y = 0; y < GRID_HEIGHT; y++) {
-        for (let x = 0; x < GRID_WIDTH; x++) {
-            grid[y][x] = MATERIALS.EMPTY;
-        }
-    }
-    draw();
+    resetGrid();
 }
 
 // Reset the grid to initial state
@@ -326,22 +295,22 @@ function updateGrid() {
                     grid[y][x] = MATERIALS.EMPTY;
                     grid[y + 1][x] = MATERIALS.ACID;
                 }
-                // Dissolve sand or walls/bedrock
-                else if (grid[y + 1][x] === MATERIALS.SAND || grid[y + 1][x] === MATERIALS.WALL || grid[y + 1][x] === MATERIALS.BEDROCK) {
+                // Dissolve sand or walls
+                else if (grid[y + 1][x] === MATERIALS.SAND || grid[y + 1][x] === MATERIALS.WALL) {
                     grid[y + 1][x] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
-                // Dissolve dark sand or walls/bedrock
-                else if (grid[y + 1][x] === MATERIALS.DARK_SAND || grid[y + 1][x] === MATERIALS.WALL || grid[y + 1][x] === MATERIALS.BEDROCK) {
+                // Dissolve dark sand or walls
+                else if (grid[y + 1][x] === MATERIALS.DARK_SAND || grid[y + 1][x] === MATERIALS.WALL) {
                     grid[y + 1][x] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
                 // Try to flow left or right
-                else if (grid[y][x - 1] === MATERIALS.SAND || grid[y][x - 1] === MATERIALS.WALL || grid[y][x - 1] === MATERIALS.BEDROCK) {
+                else if (grid[y][x - 1] === MATERIALS.SAND || grid[y][x - 1] === MATERIALS.WALL) {
                     grid[y][x - 1] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
-                else if (grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.WALL || grid[y][x + 1] === MATERIALS.BEDROCK) {
+                else if (grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.WALL) {
                     grid[y][x + 1] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
@@ -431,7 +400,7 @@ function draw() {
             const material = grid[y][x];
             if (material !== MATERIALS.EMPTY) {
                 ctx.fillStyle = COLORS[material];
-                ctx.fillRect(x * VISUAL_CELL_SIZE, y * VISUAL_CELL_SIZE, VISUAL_CELL_SIZE, VISUAL_CELL_SIZE);
+                ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
             }
         }
     }

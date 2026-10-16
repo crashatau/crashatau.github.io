@@ -1,5 +1,10 @@
 # Physics sandbox
 
+The world uses a fixed 160 × 120 grid with 5-pixel cells and a permanent bedrock
+border. Brush Size controls the square brush width in cells (1–20) for painting
+and erasing; it never resizes the world or existing materials. The eraser preserves
+stone walls. Clear All and Reset empty the interior while preserving the border.
+
 Run the game with Python 3 (no extra packages required):
 
 ```sh
@@ -26,3 +31,9 @@ this folder are accessible to connected clients, so keep private files elsewhere
 For a future GitHub Pages deployment, the game already uses relative asset paths.
 Publish `index.html`, `style.css`, `script.js`, and any game data/assets; no build
 step or Python server is needed there.
+
+Run the simulator regression checks with Node.js (no packages required):
+
+```sh
+node tests/simulator.test.cjs
+```

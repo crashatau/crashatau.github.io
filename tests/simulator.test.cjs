@@ -1,0 +1,166 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const { test } = require('node:test');
+const source = fs.readFileSync(`${__dirname}/../script.js`, 'utf8');
+const html = fs.readFileSync(`${__dirname}/../index.html`, 'utf8');
+
+function simulator() {
+    const elements = new Map();
+    const fills = [];
+    let frames = 0;
+    for (const [, id] of html.matchAll(/id="([^"]+)"/g)) {
+        elements.set(id, {
+            listeners: {}, classList: { add() {}, remove() {} },
+            addEventListener(type, listener) { this.listeners[type] = listener; },
+            dispatch(type, event = {}) { this.listeners[type].call(this, event); }
+        });
+    }
+    const canvas = elements.get('gameCanvas');
+    Object.assign(canvas, {
+        width: 800, height: 600,
+        offsetWidth: 804, offsetHeight: 604,
+        clientWidth: 800, clientHeight: 600, clientLeft: 2, clientTop: 2,
+        rect: { left: 100, top: 50, width: 804, height: 604 },
+        getBoundingClientRect() { return this.rect; },
+        getContext: () => ({
+            clearRect() { fills.length = 0; },
+            fillRect(...args) { fills.push(args); }
+        })
+    });
+    const context = vm.createContext({
+        document: {
+            getElementById(id) {
+                assert.ok(elements.has(id), `Missing HTML element: ${id}`);
+                return elements.get(id);
+            },
+            querySelectorAll: () => []
+        },
+        requestAnimationFrame() { frames++; }
+    });
+    const run = code => vm.runInContext(code, context);
+    vm.runInContext(source, context);
+    const slider = elements.get('brushSizeSlider');
+    return {
+        run, canvas, fills, elements, frames: () => frames,
+        size(value) { slider.value = String(value); slider.dispatch('input'); },
+        point(x, y) {
+            const sx = canvas.rect.width / canvas.offsetWidth;
+            const sy = canvas.rect.height / canvas.offsetHeight;
+            return {
+                button: 0,
+                clientX: canvas.rect.left + (canvas.clientLeft + (x + 0.5) * 5 * canvas.clientWidth / 800) * sx,
+                clientY: canvas.rect.top + (canvas.clientTop + (y + 0.5) * 5 * canvas.clientHeight / 600) * sy
+            };
+        }
+    };
+}
+
+function assertBoundary(s) {
+    assert.equal(s.run(`grid.every((row, y) => row.every((cell, x) =>
+        (x !== 0 && x !== GRID_WIDTH - 1 && y !== 0 && y !== GRID_HEIGHT - 1)
+        || cell === MATERIALS.BEDROCK))`), true);
+}
+
+test('startup renders a fixed 160 by 120 grid and schedules animation', () => {
+    const s = simulator();
+    assert.equal(s.frames(), 1);
+    assert.equal(s.run('CELL_SIZE === 5 && GRID_WIDTH === 160 && GRID_HEIGHT === 120'), true);
+    assert.ok(s.fills.some(rect => rect.join() === '795,595,5,5'));
+    assertBoundary(s);
+});
+
+test('all material buttons paint visibly at the pointer', () => {
+    const s = simulator();
+    for (const name of ['sand', 'water', 'acid', 'lava', 'wall']) {
+        s.run('resetGrid()');
+        s.elements.get(`${name}Btn`).dispatch('click');
+        s.canvas.dispatch('mousedown', s.point(30, 40));
+        s.canvas.dispatch('mouseup');
+        assert.equal(s.run(`grid[40][30] === MATERIALS.${name.toUpperCase()}`), true);
+        assert.ok(s.fills.some(rect => rect.join() === '150,200,5,5'));
+    }
+});
+
+test('slider extremes change only new brush footprints', () => {
+    const s = simulator();
+    for (const size of [1, 2, 5, 20]) {
+        s.run('resetGrid()');
+        s.size(size);
+        s.canvas.dispatch('mousedown', s.point(30, 40));
+        s.canvas.dispatch('mouseup');
+        assert.equal(s.run('grid.flat().filter(cell => cell === MATERIALS.SAND).length'), size * size);
+        const before = s.run('JSON.stringify(grid)');
+        s.size(size === 20 ? 1 : 20);
+        assert.equal(s.run('JSON.stringify(grid)'), before);
+        assert.equal(s.run('CELL_SIZE === 5 && GRID_WIDTH === 160 && GRID_HEIGHT === 120'), true);
+        assert.equal(s.canvas.width, 800);
+        assert.equal(s.canvas.height, 600);
+        assertBoundary(s);
+    }
+});
+
+test('pointer conversion handles borders, CSS resizing and scaled display', () => {
+    const s = simulator();
+    for (const factor of [0.5, 1, 2]) {
+        s.canvas.rect.width = 804 * factor;
+        s.canvas.rect.height = 604 * factor;
+        for (const [x, y] of [[0, 0], [1, 1], [79, 59], [158, 118], [159, 119]]) {
+            s.contextEvent = s.point(x, y);
+            const result = s.run(`pointerToCell(${JSON.stringify(s.contextEvent)})`);
+            assert.equal(result.x, x);
+            assert.equal(result.y, y);
+        }
+    }
+    Object.assign(s.canvas, { offsetWidth: 404, offsetHeight: 304, clientWidth: 400, clientHeight: 300 });
+    s.canvas.rect.width = 404;
+    s.canvas.rect.height = 304;
+    s.canvas.dispatch('mousedown', s.point(158, 118));
+    assert.equal(s.run('grid[118][158] === MATERIALS.SAND'), true);
+});
+
+test('fast painting and erasing drags have no gaps; eraser preserves walls', () => {
+    const s = simulator();
+    s.canvas.dispatch('mousedown', s.point(20, 30));
+    s.canvas.dispatch('mousemove', s.point(40, 30));
+    s.canvas.dispatch('mouseup');
+    assert.equal(s.run('grid[30].slice(20, 41).every(cell => cell === MATERIALS.SAND)'), true);
+    s.run('grid[30][25] = MATERIALS.WALL');
+    s.elements.get('eraserBtn').dispatch('click');
+    s.canvas.dispatch('mousedown', s.point(20, 30));
+    s.canvas.dispatch('mousemove', s.point(40, 30));
+    s.canvas.dispatch('mouseup');
+    assert.equal(s.run('grid[30].slice(20, 41).every((cell, i) => cell === (i === 5 ? MATERIALS.WALL : MATERIALS.EMPTY))'), true);
+});
+
+test('large brushes, erasing, clearing and resetting preserve the entire rim', () => {
+    const s = simulator();
+    s.size(20);
+    for (const material of ['sand', 'eraser']) {
+        s.elements.get(`${material}Btn`).dispatch('click');
+        for (const [x, y] of [[0, 0], [159, 119], [0, 60], [159, 60], [80, 0], [80, 119]]) {
+            s.canvas.dispatch('mousedown', s.point(x, y));
+            s.canvas.dispatch('mouseup');
+            assertBoundary(s);
+        }
+    }
+    for (const id of ['clearBtn', 'resetBtn']) {
+        s.run('grid[50][50] = MATERIALS.WALL');
+        s.elements.get(id).dispatch('click');
+        assert.equal(s.run('grid[50][50] === MATERIALS.EMPTY'), true);
+        assertBoundary(s);
+    }
+});
+
+test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
+    const s = simulator();
+    s.run(`for (let y = 1; y < GRID_HEIGHT - 1; y++) {
+        for (let x = 1; x < GRID_WIDTH - 1; x++) grid[y][x] = MATERIALS.ACID;
+    }
+    for (let tick = 0; tick < 10; tick++) updateGrid();`);
+    assertBoundary(s);
+    assert.equal(s.run('grid[118][1] === MATERIALS.ACID && grid[118][158] === MATERIALS.ACID'), true);
+    s.run('resetGrid(); grid[118][50] = MATERIALS.WALL; grid[117][50] = MATERIALS.ACID; updateGrid()');
+    assert.equal(s.run('grid[118][50] === MATERIALS.EMPTY && grid[117][50] === MATERIALS.EMPTY'), true);
+    assertBoundary(s);
+});
