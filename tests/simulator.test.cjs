@@ -436,6 +436,54 @@ test('lava dries wet sand back to regular sand', () => {
     assert.equal(s.run('grid[114][40] === MATERIALS.SAND'), true);
 });
 
+test('holding a liquid button keeps spawning at a still cursor', () => {
+    const s = simulator();
+    s.run('resetGrid(); Math.random = () => 0.01;');
+    // Water: press and hold with the cursor perfectly still. Each frame
+    // the held stream re-emits at the cursor and the column grows, even
+    // though no mousemove event ever fires.
+    s.elements.get('waterBtn').dispatch('click');
+    s.canvas.dispatch('mousedown', s.point(40, 30));
+    for (let frame = 0; frame < 20; frame++) s.run('gameLoop()');
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.WATER).length'), 20);
+    // The stream is anchored at the press point: every frame one cell was
+    // emitted and it has fallen as a solid column straight down from there
+    // (the cursor cell itself drains to the falling water each frame).
+    assert.equal(s.run('grid.slice(31, 51).every(row => row[40] === MATERIALS.WATER)'), true);
+    s.canvas.dispatch('mouseup');
+    const held = s.run('grid.flat().filter(c => c === MATERIALS.WATER).length');
+    s.run('gameLoop()');
+    // After release only the existing pool flows; nothing new spawns at
+    // the cursor, so the total water count is unchanged in one frame.
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.WATER).length'), held);
+
+    // Acid behaves the same way while held.
+    s.run('resetGrid(); Math.random = () => 0.01;');
+    s.elements.get('acidBtn').dispatch('click');
+    s.canvas.dispatch('mousedown', s.point(40, 30));
+    for (let frame = 0; frame < 5; frame++) s.run('gameLoop()');
+    assert.ok(s.run('grid.flat().filter(c => c === MATERIALS.ACID).length') >= 5);
+    s.canvas.dispatch('mouseup');
+
+    // Lava behaves the same way while held.
+    s.run('resetGrid(); Math.random = () => 0.01;');
+    s.elements.get('lavaBtn').dispatch('click');
+    s.canvas.dispatch('mousedown', s.point(40, 30));
+    for (let frame = 0; frame < 5; frame++) s.run('gameLoop()');
+    assert.ok(s.run('grid.flat().filter(c => c === MATERIALS.LAVA).length') >= 5);
+    s.canvas.dispatch('mouseup');
+
+    // Non-liquid materials are still painted exactly once per press: a
+    // held sand cursor must not keep minting new sand cells.
+    s.run('resetGrid(); Math.random = () => 0.99;');
+    s.elements.get('sandBtn').dispatch('click');
+    s.canvas.dispatch('mousedown', s.point(40, 30));
+    for (let frame = 0; frame < 30; frame++) s.run('gameLoop()');
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.SAND).length'), 1);
+    s.canvas.dispatch('mouseup');
+    assertBoundary(s);
+});
+
 test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
     const s = simulator();
     s.run(`for (let y = 1; y < GRID_HEIGHT - 1; y++) {
