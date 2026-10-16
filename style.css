@@ -56,6 +56,11 @@ body {
     color: black;
 }
 
+#soilBtn.active {
+    background-color: #4b2e16;
+    color: white;
+}
+
 #waterBtn.active {
     background-color: #1e90ff;
     color: white;

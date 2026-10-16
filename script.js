@@ -21,7 +21,8 @@ const MATERIALS = {
     LAVA: 6,
     ERASER: 7,
     BEDROCK: 8,
-    AQUA_WATER: 9
+    AQUA_WATER: 9,
+    SOIL: 10
 };
 
 // Material colors
@@ -35,7 +36,8 @@ const COLORS = {
     [MATERIALS.LAVA]: '#ff4500',
     [MATERIALS.ERASER]: '#ffffff', // White for eraser (invisible or just a placeholder)
     [MATERIALS.BEDROCK]: '#404040', // Dark gray for bedrock
-    [MATERIALS.AQUA_WATER]: '#00ffff' // Aqua for acid-touched water
+    [MATERIALS.AQUA_WATER]: '#00ffff', // Aqua for acid-touched water
+    [MATERIALS.SOIL]: '#4b2e16' // Dark brown for soil
 };
 
 // Grid to store materials
@@ -68,7 +70,8 @@ let lastY = 0;
 const POUR_SPAWN_CHANCE = 0.5;
 function isPourableMaterial(material) {
     return material === MATERIALS.SAND || material === MATERIALS.WATER ||
-        material === MATERIALS.ACID || material === MATERIALS.LAVA;
+        material === MATERIALS.ACID || material === MATERIALS.LAVA ||
+        material === MATERIALS.SOIL;
 }
 
 // Initialize the game
@@ -94,6 +97,7 @@ function setupEventListeners() {
     canvas.addEventListener('mouseleave', handleMouseUp);
     
     document.getElementById('sandBtn').addEventListener('click', () => selectMaterial(MATERIALS.SAND));
+    document.getElementById('soilBtn').addEventListener('click', () => selectMaterial(MATERIALS.SOIL));
     document.getElementById('waterBtn').addEventListener('click', () => selectMaterial(MATERIALS.WATER));
     document.getElementById('acidBtn').addEventListener('click', () => selectMaterial(MATERIALS.ACID));
     document.getElementById('lavaBtn').addEventListener('click', () => selectMaterial(MATERIALS.LAVA));
@@ -280,9 +284,12 @@ const WATER_ABSORB_CHANCE = 0.02;
 // Wet (dark) sand slowly stains the regular sand around it, so the colour
 // seeps through the pile as though the water were soaking in.
 const DARK_SAND_SEEP_CHANCE = 0.05;
+function isSandMaterial(material) {
+    return material === MATERIALS.SAND || material === MATERIALS.SOIL;
+}
 function lavaMeltAdjacentSand(y, x) {
     for (const [ny, nx] of [[y - 1, x], [y + 1, x], [y, x - 1], [y, x + 1]]) {
-        if (grid[ny][nx] === MATERIALS.SAND && Math.random() < LAVA_MELT_SAND_CHANCE) {
+        if (isSandMaterial(grid[ny][nx]) && Math.random() < LAVA_MELT_SAND_CHANCE) {
             grid[ny][nx] = MATERIALS.EMPTY;
         }
     }
@@ -301,8 +308,10 @@ function updateGrid() {
         for (let x = 1; x < GRID_WIDTH - 1; x++) {
             const cell = grid[y][x];
             
-            // Sand physics
-            if (cell === MATERIALS.SAND) {
+            // Sand physics (soil is functionally identical to sand)
+            if (cell === MATERIALS.SAND || cell === MATERIALS.SOIL) {
+                // Moving sand keeps its own type.
+                const sandType = cell;
                 // Wet sand seeps: dry sand touching it slowly turns dark,
                 // so the colour soaks through the pile over time.
                 if (grid[y - 1][x] === MATERIALS.DARK_SAND || grid[y + 1][x] === MATERIALS.DARK_SAND ||
@@ -312,16 +321,16 @@ function updateGrid() {
                 // Try to fall down
                 if (grid[y + 1][x] === MATERIALS.EMPTY) {
                     grid[y][x] = MATERIALS.EMPTY;
-                    grid[y + 1][x] = MATERIALS.SAND;
+                    grid[y + 1][x] = sandType;
                 }
                 // Try to fall diagonally left or right
                 else if (grid[y + 1][x - 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
                     grid[y][x] = MATERIALS.EMPTY;
-                    grid[y + 1][x - 1] = MATERIALS.SAND;
+                    grid[y + 1][x - 1] = sandType;
                 }
                 else if (grid[y + 1][x + 1] === MATERIALS.EMPTY && Math.random() > 0.5) {
                     grid[y][x] = MATERIALS.EMPTY;
-                    grid[y + 1][x + 1] = MATERIALS.SAND;
+                    grid[y + 1][x + 1] = sandType;
                 }
                 // If blocked by a wall or bedrock, try to slide down
                 else if (grid[y + 1][x] === MATERIALS.WALL || 
@@ -333,11 +342,11 @@ function updateGrid() {
                     // Slide left or right depending on which side is free
                     if (grid[y][x - 1] === MATERIALS.EMPTY && grid[y + 1][x - 1] !== MATERIALS.WALL && grid[y + 1][x - 1] !== MATERIALS.BEDROCK) {
                         grid[y][x] = MATERIALS.EMPTY;
-                        grid[y][x - 1] = MATERIALS.SAND;
+                        grid[y][x - 1] = sandType;
                     }
                     else if (grid[y][x + 1] === MATERIALS.EMPTY && grid[y + 1][x + 1] !== MATERIALS.WALL && grid[y + 1][x + 1] !== MATERIALS.BEDROCK) {
                         grid[y][x] = MATERIALS.EMPTY;
-                        grid[y][x + 1] = MATERIALS.SAND;
+                        grid[y][x + 1] = sandType;
                     }
                 }
             }
@@ -361,18 +370,18 @@ function updateGrid() {
                     grid[y][x] = MATERIALS.EMPTY;
                     grid[y][x + 1] = waterType;
                 }
-                // Water near sand: it stains the sand dark and is slowly
+                // Water near sand/soil: it stains them dark and is slowly
                 // absorbed, disappearing cell by cell.
-                else if (grid[y - 1][x] === MATERIALS.SAND || grid[y - 1][x] === MATERIALS.DARK_SAND ||
-                         grid[y + 1][x] === MATERIALS.SAND || grid[y + 1][x] === MATERIALS.DARK_SAND ||
-                         grid[y][x - 1] === MATERIALS.SAND || grid[y][x - 1] === MATERIALS.DARK_SAND ||
-                         grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.DARK_SAND) {
-                    // Turn adjacent sand to dark sand
-                    if (grid[y - 1][x] === MATERIALS.SAND) grid[y - 1][x] = MATERIALS.DARK_SAND;
-                    if (grid[y + 1][x] === MATERIALS.SAND) grid[y + 1][x] = MATERIALS.DARK_SAND;
-                    if (grid[y][x - 1] === MATERIALS.SAND) grid[y][x - 1] = MATERIALS.DARK_SAND;
-                    if (grid[y][x + 1] === MATERIALS.SAND) grid[y][x + 1] = MATERIALS.DARK_SAND;
-                    // Water near sand is absorbed and slowly disappears.
+                else if (isSandMaterial(grid[y - 1][x]) || grid[y - 1][x] === MATERIALS.DARK_SAND ||
+                         isSandMaterial(grid[y + 1][x]) || grid[y + 1][x] === MATERIALS.DARK_SAND ||
+                         isSandMaterial(grid[y][x - 1]) || grid[y][x - 1] === MATERIALS.DARK_SAND ||
+                         isSandMaterial(grid[y][x + 1]) || grid[y][x + 1] === MATERIALS.DARK_SAND) {
+                    // Turn adjacent sand/soil to dark sand
+                    if (isSandMaterial(grid[y - 1][x])) grid[y - 1][x] = MATERIALS.DARK_SAND;
+                    if (isSandMaterial(grid[y + 1][x])) grid[y + 1][x] = MATERIALS.DARK_SAND;
+                    if (isSandMaterial(grid[y][x - 1])) grid[y][x - 1] = MATERIALS.DARK_SAND;
+                    if (isSandMaterial(grid[y][x + 1])) grid[y][x + 1] = MATERIALS.DARK_SAND;
+                    // Water near sand/soil is absorbed and slowly disappears.
                     if (Math.random() < WATER_ABSORB_CHANCE) {
                         grid[y][x] = MATERIALS.EMPTY;
                     }
@@ -386,8 +395,8 @@ function updateGrid() {
                     grid[y][x] = MATERIALS.EMPTY;
                     grid[y + 1][x] = MATERIALS.ACID;
                 }
-                // Dissolve sand or walls
-                else if (grid[y + 1][x] === MATERIALS.SAND || grid[y + 1][x] === MATERIALS.WALL) {
+                // Dissolve sand/soil or walls
+                else if (isSandMaterial(grid[y + 1][x]) || grid[y + 1][x] === MATERIALS.WALL) {
                     grid[y + 1][x] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
@@ -397,11 +406,11 @@ function updateGrid() {
                     grid[y][x] = MATERIALS.EMPTY;
                 }
                 // Try to flow left or right
-                else if (grid[y][x - 1] === MATERIALS.SAND || grid[y][x - 1] === MATERIALS.WALL) {
+                else if (isSandMaterial(grid[y][x - 1]) || grid[y][x - 1] === MATERIALS.WALL) {
                     grid[y][x - 1] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
-                else if (grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.WALL) {
+                else if (isSandMaterial(grid[y][x + 1]) || grid[y][x + 1] === MATERIALS.WALL) {
                     grid[y][x + 1] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
                 }
