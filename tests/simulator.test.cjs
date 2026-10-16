@@ -143,7 +143,7 @@ test('fast painting and erasing drags have no gaps; eraser preserves walls', () 
     assert.equal(s.run('grid[30].slice(20, 41).every((cell, i) => cell === (i === 5 ? MATERIALS.WALL : MATERIALS.EMPTY))'), true);
 });
 
-test('large brushes, erasing, clearing and resetting preserve the entire rim', () => {
+test('large brushes, erasing and resetting preserve the entire rim', () => {
     const s = simulator();
     s.size(20);
     for (const material of ['sand', 'eraser']) {
@@ -154,12 +154,10 @@ test('large brushes, erasing, clearing and resetting preserve the entire rim', (
             assertBoundary(s);
         }
     }
-    for (const id of ['clearBtn', 'resetBtn']) {
-        s.run('grid[50][50] = MATERIALS.WALL');
-        s.elements.get(id).dispatch('click');
-        assert.equal(s.run('grid[50][50] === MATERIALS.EMPTY'), true);
-        assertBoundary(s);
-    }
+    s.run('grid[50][50] = MATERIALS.WALL');
+    s.elements.get('resetBtn').dispatch('click');
+    assert.equal(s.run('grid[50][50] === MATERIALS.EMPTY'), true);
+    assertBoundary(s);
 });
 
 test('acid puddles on flat ground level off instead of piling into mountains', () => {

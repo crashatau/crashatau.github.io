@@ -81,7 +81,6 @@ function setupEventListeners() {
     document.getElementById('wallBtn').addEventListener('click', () => selectMaterial(MATERIALS.WALL));
     document.getElementById('eraserBtn').addEventListener('click', () => selectMaterial(MATERIALS.ERASER));
     document.getElementById('pauseBtn').addEventListener('click', togglePause);
-    document.getElementById('clearBtn').addEventListener('click', clearGrid);
     document.getElementById('resetBtn').addEventListener('click', resetGrid);
     
     const brushSizeSlider = document.getElementById('brushSizeSlider');
@@ -194,11 +193,6 @@ function paint(x, y) {
             }
         }
     }
-}
-
-// Clearing and resetting both restore the empty interior and fixed bedrock rim.
-function clearGrid() {
-    resetGrid();
 }
 
 // Reset the grid to initial state
