@@ -234,6 +234,22 @@ test('spacebar toggles pause and play like the toolbar button', () => {
     assert.equal(s.run('paused'), false);
 });
 
+test('R key resets the grid like the toolbar button', () => {
+    const s = simulator();
+    s.run('resetGrid(); grid[40][30] = MATERIALS.SAND; grid[41][30] = MATERIALS.WALL;');
+
+    // R clears the interior to empty (walls included) and keeps the rim.
+    s.keydown('KeyR');
+    assert.equal(s.run('grid[40][30] === MATERIALS.EMPTY && grid[41][30] === MATERIALS.EMPTY'), true);
+    s.run(`grid[50][50] = MATERIALS.WALL`);
+    s.keydown('KeyR');
+    assert.equal(s.run('grid[50][50] === MATERIALS.EMPTY'), true);
+    assertBoundary(s);
+
+    // R must not touch the pause state.
+    assert.equal(s.run('paused'), false);
+});
+
 test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
     const s = simulator();
     s.run(`for (let y = 1; y < GRID_HEIGHT - 1; y++) {

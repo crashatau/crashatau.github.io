@@ -94,16 +94,20 @@ function setupEventListeners() {
     document.addEventListener('keydown', handleKeyDown);
 }
 
-// Spacebar toggles pause, same as the toolbar button.
+// Spacebar toggles pause and R resets, same as the toolbar buttons.
 function handleKeyDown(e) {
-    if (e.code !== 'Space') return;
+    if (e.code !== 'Space' && e.code !== 'KeyR') return;
     e.preventDefault();
-    // A focused button would fire its own click on keyup and double-toggle;
-    // drop focus first so the hotkey is the only thing that toggles.
+    // A focused button would fire its own click on keyup and double-act;
+    // drop focus first so the hotkey is the only thing that acts.
     if (document.activeElement && document.activeElement.blur) {
         document.activeElement.blur();
     }
-    togglePause();
+    if (e.code === 'Space') {
+        togglePause();
+    } else {
+        resetGrid();
+    }
 }
 
 // Map the canvas content box to the fixed simulation grid, including CSS scaling.
