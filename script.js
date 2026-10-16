@@ -91,6 +91,20 @@ function setupEventListeners() {
         brushSize = Number(this.value);
         brushSizeValue.textContent = brushSize;
     });
+
+    document.addEventListener('keydown', handleKeyDown);
+}
+
+// Spacebar toggles pause, same as the toolbar button.
+function handleKeyDown(e) {
+    if (e.code !== 'Space') return;
+    e.preventDefault();
+    // A focused button would fire its own click on keyup and double-toggle;
+    // drop focus first so the hotkey is the only thing that toggles.
+    if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+    }
+    togglePause();
 }
 
 // Map the canvas content box to the fixed simulation grid, including CSS scaling.

@@ -28,14 +28,18 @@ function simulator() {
             fillRect(...args) { fills.push(args); }
         })
     });
-    const context = vm.createContext({
-        document: {
-            getElementById(id) {
-                assert.ok(elements.has(id), `Missing HTML element: ${id}`);
-                return elements.get(id);
-            },
-            querySelectorAll: () => []
+    const document = {
+        listeners: {},
+        activeElement: null,
+        getElementById(id) {
+            assert.ok(elements.has(id), `Missing HTML element: ${id}`);
+            return elements.get(id);
         },
+        querySelectorAll: () => [],
+        addEventListener(type, listener) { this.listeners[type] = listener; }
+    };
+    const context = vm.createContext({
+        document,
         requestAnimationFrame() { frames++; }
     });
     const run = code => vm.runInContext(code, context);
@@ -44,6 +48,12 @@ function simulator() {
     return {
         run, canvas, fills, elements, frames: () => frames,
         size(value) { slider.value = String(value); slider.dispatch('input'); },
+        keydown(code) {
+            document.listeners.keydown({
+                code,
+                preventDefault() { this.prevented = true; }
+            });
+        },
         point(x, y) {
             const sx = canvas.rect.width / canvas.offsetWidth;
             const sy = canvas.rect.height / canvas.offsetHeight;
@@ -201,6 +211,29 @@ test('pause button freezes physics and toggles its own label', () => {
     assert.equal(btn.textContent, 'Pause');
     s.run('gameLoop()');
     assert.equal(s.run('grid[41][30] === MATERIALS.SAND'), true);
+});
+
+test('spacebar toggles pause and play like the toolbar button', () => {
+    const s = simulator();
+    s.run('resetGrid(); grid[40][30] = MATERIALS.SAND;');
+
+    // Space pauses: physics freezes and the button flips to Play.
+    s.keydown('Space');
+    assert.equal(s.run('paused'), true);
+    assert.equal(s.elements.get('pauseBtn').textContent, 'Play');
+    s.run('gameLoop()');
+    assert.equal(s.run('grid[40][30] === MATERIALS.SAND'), true);
+
+    // Space resumes: physics runs again and the button flips to Pause.
+    s.keydown('Space');
+    assert.equal(s.run('paused'), false);
+    assert.equal(s.elements.get('pauseBtn').textContent, 'Pause');
+    s.run('gameLoop()');
+    assert.equal(s.run('grid[41][30] === MATERIALS.SAND'), true);
+
+    // Other keys are ignored and must not change the pause state.
+    s.keydown('KeyP');
+    assert.equal(s.run('paused'), false);
 });
 
 test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
