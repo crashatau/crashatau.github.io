@@ -152,6 +152,34 @@ test('large brushes, erasing, clearing and resetting preserve the entire rim', (
     }
 });
 
+test('acid puddles on flat ground level off instead of piling into mountains', () => {
+    const s = simulator();
+    s.run(`resetGrid();
+    for (let x = 75; x <= 79; x++) {
+        for (let y = 110; y <= 118; y++) grid[y][x] = MATERIALS.ACID;
+    }`);
+    // The 45-cell mound starts 5 wide and 9 tall on the floor.
+    assert.equal(s.run('grid.flat().filter(c => c === MATERIALS.ACID).length'), 45);
+    s.run('for (let tick = 0; tick < 1000; tick++) updateGrid();');
+    const after = s.run(`(() => {
+        let min = Infinity, max = -Infinity, maxH = 0, count = 0;
+        for (let x = 1; x < GRID_WIDTH - 1; x++) {
+            if (grid[118][x] === MATERIALS.ACID) { min = Math.min(min, x); max = Math.max(max, x); }
+            let h = 0;
+            for (let y = 1; y < GRID_HEIGHT - 1; y++)
+                if (grid[y][x] === MATERIALS.ACID) { h++; count++; }
+            maxH = Math.max(maxH, h);
+        }
+        return { min, max, maxH, count };
+    })()`);
+    // All acid survives, spreads well beyond its original footprint,
+    // and flattens into a shallow pool instead of a 9-tall mountain.
+    assert.equal(after.count, 45);
+    assert.ok(after.max - after.min > 30, `expected spread, got ${after.max - after.min}`);
+    assert.ok(after.maxH <= 2, `expected a shallow pool, got height ${after.maxH}`);
+    assertBoundary(s);
+});
+
 test('acid cannot dissolve bedrock below or on either side, but still dissolves walls', () => {
     const s = simulator();
     s.run(`for (let y = 1; y < GRID_HEIGHT - 1; y++) {

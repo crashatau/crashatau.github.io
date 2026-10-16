@@ -217,6 +217,15 @@ function selectMaterial(material) {
     updateToolbar();
 }
 
+// Acid spreads much slower than water (which uses a flat 50% chance per tick).
+// Its chance scales with the acid piled directly above this cell, so a thin
+// line barely creeps while a deep pool pours out and levels off.
+function acidFlowChance(y, x) {
+    let depth = 0;
+    for (let yy = y - 1; yy > 0 && grid[yy][x] === MATERIALS.ACID; yy--) depth++;
+    return Math.min(0.4, 0.1 + 0.1 * depth);
+}
+
 // Update the grid based on physics rules
 function updateGrid() {
     // Process from bottom to top for sand and water to fall properly
@@ -313,6 +322,17 @@ function updateGrid() {
                 else if (grid[y][x + 1] === MATERIALS.SAND || grid[y][x + 1] === MATERIALS.WALL) {
                     grid[y][x + 1] = MATERIALS.EMPTY;
                     grid[y][x] = MATERIALS.EMPTY;
+                }
+                // Spread sideways into empty space, slower than water and
+                // scaled by pile depth, so mounds drain out and level off
+                // instead of freezing in place.
+                else if (grid[y][x - 1] === MATERIALS.EMPTY && Math.random() < acidFlowChance(y, x)) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y][x - 1] = MATERIALS.ACID;
+                }
+                else if (grid[y][x + 1] === MATERIALS.EMPTY && Math.random() < acidFlowChance(y, x)) {
+                    grid[y][x] = MATERIALS.EMPTY;
+                    grid[y][x + 1] = MATERIALS.ACID;
                 }
                 // Dissolve when touching water
                 else if (grid[y][x - 1] === MATERIALS.WATER || 
