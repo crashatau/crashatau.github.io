@@ -620,3 +620,44 @@ test('acid cannot dissolve bedrock below or on either side, but still dissolves 
     assert.equal(s.run('grid[118][50] === MATERIALS.EMPTY && grid[117][50] === MATERIALS.EMPTY'), true);
     assertBoundary(s);
 });
+
+test('spawning liquids never overwrite an existing wall', () => {
+    const s = simulator();
+    const liquidCount = liquid =>
+        s.run(`grid.flat().filter(c => c === MATERIALS.${liquid.toUpperCase()}).length`);
+    // A press or a held cursor straight on a wall paints nothing, wall
+    // and all untouched, for every liquid.
+    for (const liquid of ['water', 'acid', 'lava']) {
+        s.run(`resetGrid();
+        Math.random = () => 0.01;
+        grid[39][40] = MATERIALS.WALL;
+        grid[40][40] = MATERIALS.WALL;`);
+        s.elements.get(`${liquid}Btn`).dispatch('click');
+        s.canvas.dispatch('mousedown', s.point(40, 40));
+        s.canvas.dispatch('mouseup');
+        assert.equal(liquidCount(liquid), 0);
+        assert.equal(s.run('grid[39][40] === MATERIALS.WALL && grid[40][40] === MATERIALS.WALL'), true);
+        s.canvas.dispatch('mousedown', s.point(40, 40));
+        for (let frame = 0; frame < 8; frame++) s.run('gameLoop()');
+        s.canvas.dispatch('mouseup');
+        assert.equal(liquidCount(liquid), 0);
+        assert.equal(s.run('grid[39][40] === MATERIALS.WALL && grid[40][40] === MATERIALS.WALL'), true);
+        assertBoundary(s);
+    }
+    // A held stream above the walls keeps emitting in open cells. Water
+    // and lava rest on the walls, which survive; acid keeps its existing
+    // ability to dissolve the walls below it, consuming one cell per wall.
+    for (const [liquid, count, wallsLeft] of [['water', 1, true], ['lava', 1, true], ['acid', 6, false]]) {
+        s.run(`resetGrid();
+        Math.random = () => 0.01;
+        grid[39][40] = MATERIALS.WALL;
+        grid[40][40] = MATERIALS.WALL;`);
+        s.elements.get(`${liquid}Btn`).dispatch('click');
+        s.canvas.dispatch('mousedown', s.point(40, 38));
+        for (let frame = 0; frame < 8; frame++) s.run('gameLoop()');
+        s.canvas.dispatch('mouseup');
+        assert.equal(liquidCount(liquid), count);
+        assert.equal(s.run('grid[39][40] === MATERIALS.WALL && grid[40][40] === MATERIALS.WALL'), wallsLeft);
+        assertBoundary(s);
+    }
+});

@@ -75,6 +75,10 @@ function isPourableMaterial(material) {
         material === MATERIALS.ACID || material === MATERIALS.LAVA ||
         material === MATERIALS.SOIL;
 }
+function isLiquidMaterial(material) {
+    return material === MATERIALS.WATER || material === MATERIALS.ACID ||
+        material === MATERIALS.LAVA;
+}
 
 // Initialize the game
 function init() {
@@ -225,6 +229,9 @@ function paint(x, y) {
                 targetY <= 0 || targetY >= GRID_HEIGHT - 1) continue;
             const material = grid[targetY][targetX];
             if (material === MATERIALS.BEDROCK) continue;
+            // A spawning liquid (water, acid, lava) cannot overwrite an
+            // existing wall; the wall cell keeps its material.
+            if (material === MATERIALS.WALL && isLiquidMaterial(currentMaterial)) continue;
             grid[targetY][targetX] = currentMaterial === MATERIALS.ERASER
                 ? MATERIALS.EMPTY
                 : currentMaterial;
